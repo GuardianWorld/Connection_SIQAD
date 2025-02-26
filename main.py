@@ -1,18 +1,16 @@
 import xml.etree.ElementTree as ET
-from sqd_manipulator import DBDot, Gate, parse_sqd_file, set_dots_to_minimum, get_input_perturbers
+from sqd_manipulator import DBDot, Gate, main_operator
+import file_manager
 
 def main():
-    sqd_file_path = "sqd/OR0.28.sqd"
-    dots = parse_sqd_file(sqd_file_path)
-    for dot in dots:
-        print(dot)
-        
-    dots, pivot_dot = set_dots_to_minimum(dots)
-    perturbers = get_input_perturbers(dots)
     
-    gate = Gate(dots, pivot_dot, perturbers)
-    
-    print(gate)
+    file_manager.make_dir("sqd")
+    files = file_manager.get_files("sqd")
+    print("Files:")
+    for file in files:
+        gate = main_operator(file)
+        gate.print_gate()
+        print("\n")
     
         
 if __name__ == "__main__":

@@ -2,6 +2,10 @@ import os
 
 #Gets all .SQD files in the directory and its subdirectories
 
+def make_dir(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
 def get_files(directory):
     files = []
     for root, dirs, file in os.walk(directory):

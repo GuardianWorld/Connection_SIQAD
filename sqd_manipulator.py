@@ -22,12 +22,18 @@ class Gate:
         self.db_dots = db_dots
         self.pivot_dot = pivot_dot
         self.input_perturbers = input_perturbers
-        self.gate_size = [0, 0]
 
     def __repr__(self):
         return (f"Gate(db_dots={self.db_dots}, pivot_dot={self.pivot_dot}, "
-                f"input_perturbers={self.input_perturbers}, gate_size={self.gate_size})")
-        
+                f"input_perturbers={self.input_perturbers})")
+    
+    def print_gate(self):
+        print("Pivot Dot: ", self.pivot_dot)
+        for perturber in self.input_perturbers:
+            print("Perturber: ", perturber)
+        print("DB Dots: ")
+        for dot in self.db_dots:
+            print(dot)
         
 def parse_sqd_file(file_path):
     tree = ET.parse(file_path)
@@ -60,7 +66,6 @@ def set_dots_to_minimum(dots):
     pivot_dot = None
     for dot in dots:
         if abs(dot.latcoord['m']) == min_m:
-            print("Original Dot:", dot)
             min_n = dot.latcoord['n']
             min_m = dot.latcoord['m']
             pivot_dot = dot
@@ -76,7 +81,6 @@ def get_input_perturbers(dots):
     perturbers = []
     max_m = max(abs(dot.latcoord['m']) for dot in dots)
     
-    print("Max M:", max_m)
     for dot in dots:
         #Get the perturbers at the TOP of the list (Highest m) 
         #Since all are Y shaped, the perturber is on the TOP 99% of the time HOPEFULLY
@@ -87,3 +91,14 @@ def get_input_perturbers(dots):
     return perturbers   
     
         
+def main_operator(file):
+    print("Current File: ", file)
+    dots = parse_sqd_file(file)
+        
+    dots, pivot_dot = set_dots_to_minimum(dots)
+    perturbers = get_input_perturbers(dots)
+    
+    gate = Gate(dots, pivot_dot, perturbers)
+    return gate
+    
+    
