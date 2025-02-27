@@ -33,7 +33,6 @@ def get_input_perturbers(dots):
         #Since all are Y shaped, the perturber is on the TOP 99% of the time HOPEFULLY
         if abs(dot.latcoord['m']) == max_m:
             perturbers.append(dot)
-        
     
     return perturbers   
     
@@ -103,12 +102,12 @@ def shift_gate_dots(gate, shiftn, shiftm):
     
         
 def main_operator(file):
-    print("Current File: ", file)
     dots = parse_sqd_file(file)
         
     dots, pivot_dot = set_dots_to_minimum(dots)
     perturbers = get_input_perturbers(dots)
     name = file.split("\\")[-1]
+    name = name.split(".")[0]
     gate = Gate(dots, pivot_dot, perturbers, name)
     return gate
     

@@ -52,6 +52,9 @@ class Circuit:
         print("Gates: ")
         for gate in self.gates:
             print(gate.name)
+            
+    def set_input_perturbers(self, input_perturbers):
+        self.input_perterbers = input_perturbers
         
     
     
