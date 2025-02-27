@@ -22,7 +22,7 @@ def main():
         
     #Connect the gates
     
-    circuit = gate_connector.connect_3_gates(gates[0], gates[1], gates[2], wires=2)
+    circuit = gate_connector.connect_3_gates(gates[0], gates[1], gates[2], wires=0)
     circuit.print_circuit()
     
     file_name, template = file_manager.sqd_template_create(sqd_manipulator.circuit_to_gate(circuit))
