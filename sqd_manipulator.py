@@ -1,40 +1,6 @@
 import xml.etree.ElementTree as ET
+from classes import DBDot, Gate
 
-class DBDot:
-    def __init__(self, layer_id, latcoord, physloc, color):
-        self.layer_id = layer_id
-        self.latcoord = latcoord  # Dictionary with keys 'n', 'm', 'l'
-        self.physloc = physloc    # Dictionary with keys 'x', 'y'
-        self.color = color
-
-    def __repr__(self):
-        return (f"DBDot(layer_id={self.layer_id}, latcoord={self.latcoord}, "
-                f"physloc={self.physloc}, color='{self.color}')")
-    
-    def recalculate_physloc(self):
-        # Recalculate the physical location of the dot based on the latcoord
-        x = self.latcoord['n'] * 3.84
-        y = self.latcoord['m'] * 7.68 + self.latcoord['l'] * 2.25
-        self.physloc = {'x': x, 'y': y}
-        
-class Gate:
-    def __init__(self, db_dots, pivot_dot, input_perturbers):
-        self.db_dots = db_dots
-        self.pivot_dot = pivot_dot
-        self.input_perturbers = input_perturbers
-
-    def __repr__(self):
-        return (f"Gate(db_dots={self.db_dots}, pivot_dot={self.pivot_dot}, "
-                f"input_perturbers={self.input_perturbers})")
-    
-    def print_gate(self):
-        print("Pivot Dot: ", self.pivot_dot)
-        for perturber in self.input_perturbers:
-            print("Perturber: ", perturber)
-        print("DB Dots: ")
-        for dot in self.db_dots:
-            print(dot)
-        
 def parse_sqd_file(file_path):
     tree = ET.parse(file_path)
     root = tree.getroot()
@@ -58,6 +24,20 @@ def parse_sqd_file(file_path):
         
     return dots
 
+def get_input_perturbers(dots):
+    perturbers = []
+    max_m = max(abs(dot.latcoord['m']) for dot in dots)
+    
+    for dot in dots:
+        #Get the perturbers at the TOP of the list (Highest m) 
+        #Since all are Y shaped, the perturber is on the TOP 99% of the time HOPEFULLY
+        if abs(dot.latcoord['m']) == max_m:
+            perturbers.append(dot)
+        
+    
+    return perturbers   
+    
+
 def set_dots_to_minimum(dots):
     # Get the perturber at the BOTTOM of the list (Lowest m)
     
@@ -76,19 +56,50 @@ def set_dots_to_minimum(dots):
         dot.recalculate_physloc()
     
     return dots, pivot_dot
-            
-def get_input_perturbers(dots):
-    perturbers = []
-    max_m = max(abs(dot.latcoord['m']) for dot in dots)
-    
+
+def find_most_left_dot(dots):
+    min_n = min(dot.latcoord['n'] for dot in dots)
+    min_m = 0
+    left_dot = None
     for dot in dots:
-        #Get the perturbers at the TOP of the list (Highest m) 
-        #Since all are Y shaped, the perturber is on the TOP 99% of the time HOPEFULLY
-        if abs(dot.latcoord['m']) == max_m:
-            perturbers.append(dot)
-        
+        if dot.latcoord['n'] == min_n:
+            min_n = dot.latcoord['n']
+            left_dot = dot
     
-    return perturbers   
+    return left_dot
+
+def find_most_right_dot(dots):
+    max_n = max(dot.latcoord['n'] for dot in dots)
+    max_m = 0
+    right_dot = None
+    for dot in dots:
+        if dot.latcoord['n'] == max_n:
+            max_n = dot.latcoord['n']
+            right_dot = dot
+    
+    return right_dot
+
+def find_pivot_dot(dots):
+    # Get the perturber at the BOTTOM of the list (Lowest m)
+    
+    min_m = min(abs(dot.latcoord['m']) for dot in dots) #find the minimum value of m
+    min_n = 0
+    pivot_dot = None
+    for dot in dots:
+        if abs(dot.latcoord['m']) == min_m:
+            min_n = dot.latcoord['n']
+            min_m = dot.latcoord['m']
+            pivot_dot = dot
+    
+    return pivot_dot
+
+def shift_gate_dots(gate, shiftn, shiftm):
+    for dot in gate.db_dots:
+        dot.latcoord['n'] = dot.latcoord['n'] + shiftn
+        dot.latcoord['m'] = dot.latcoord['m'] + shiftm
+        dot.recalculate_physloc()
+        
+    return gate
     
         
 def main_operator(file):
@@ -97,8 +108,20 @@ def main_operator(file):
         
     dots, pivot_dot = set_dots_to_minimum(dots)
     perturbers = get_input_perturbers(dots)
-    
-    gate = Gate(dots, pivot_dot, perturbers)
+    name = file.split("\\")[-1]
+    gate = Gate(dots, pivot_dot, perturbers, name)
     return gate
     
+def circuit_to_gate(circuit):
+    db_dots = []
+    for gate in circuit.gates:
+        for dot in gate.db_dots:
+            db_dots.append(dot)
     
+    pivot_dot = circuit.pivot_dot
+    input_perturbers = circuit.input_perterbers
+    name = "Circuit"
+    for gate in circuit.gates:
+        name += f"_{gate.name}"
+    gate = Gate(db_dots, pivot_dot, input_perturbers, name)
+    return gate
