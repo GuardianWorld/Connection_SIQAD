@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
 from classes import DBDot, Gate
+import os
 
 def parse_sqd_file(file_path):
     tree = ET.parse(file_path)
@@ -106,7 +107,10 @@ def main_operator(file):
         
     dots, pivot_dot = set_dots_to_minimum(dots)
     perturbers = get_input_perturbers(dots)
-    name = file.split("\\")[-1]
+    if os.name == 'posix':
+        name = file.split("/")[-1]
+    else:
+        name = file.split("\\")[-1]
     name = name.split(".")[0]
     gate = Gate(dots, pivot_dot, perturbers, name)
     return gate

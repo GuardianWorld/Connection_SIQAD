@@ -1,4 +1,5 @@
 import xml.etree.ElementTree as ET
+import os
 from classes import DBDot, Gate
 import sqd_manipulator
 import gate_connector
@@ -38,7 +39,11 @@ def main():
             circuit.print_circuit()
             
             file_name, template = file_manager.sqd_template_create(sqd_manipulator.circuit_to_gate(circuit))
-            file_manager.make_file("results\\" + file_name, template)
+            print(file_name)
+            if(os.name == 'posix'):
+                file_manager.make_file("results/" + file_name, template)
+            else:
+                file_manager.make_file("results\\" + file_name, template)
             
         if(choice == "2"):
             print("Choose 3 files to connect")
