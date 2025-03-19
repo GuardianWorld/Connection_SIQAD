@@ -20,9 +20,7 @@ def get_files(directory):
                 files.append(os.path.join(root, f))
     return files
 
-def sqd_template_create(gate):
-    #i need a date in this template 2025-02-26 21:36:59
-    #current date
+def sqd_template_create(gate, prefix=""):
     date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     header = """<?xml version="1.0" encoding="UTF-8"?>
@@ -111,7 +109,7 @@ def sqd_template_create(gate):
         </dbdot>"""
 
     middle = middle[1:]
-    name = gate.name + ".sqd"
+    name = prefix + gate.name + ".sqd"
     
     return name , header + middle + bottom
     

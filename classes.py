@@ -35,6 +35,31 @@ class Gate:
         print("DB Dots: ")
         for dot in self.db_dots:
             print(dot)
+            
+    def remove_dot(self, dot):
+        self.db_dots.remove(dot)
+    
+    def find_dot(self, n, m, l):
+        for dot in self.db_dots:
+            if dot.latcoord['n'] == n and dot.latcoord['m'] == m and dot.latcoord['l'] == l:
+                return dot
+        return None
+    
+    def find_input_dot(self, n, m, l):
+        for dot in self.input_perturbers:
+            if dot.latcoord['n'] == n and dot.latcoord['m'] == m and dot.latcoord['l'] == l:
+                return dot
+        return None
+    
+    def remove_input(self, dot):
+        dot_n = dot.latcoord['n']
+        dot_m = dot.latcoord['m']
+        dot_l = dot.latcoord['l']
+        dot = self.find_dot(dot_n, dot_m, dot_l)
+        input_dot = self.find_input_dot(dot_n, dot_m, dot_l)
+        self.db_dots.remove(dot)
+        self.input_perturbers.remove(input_dot)
+        
       
 class Circuit:
     def __init__(self, gates, input_perterbers, pivot_dot):

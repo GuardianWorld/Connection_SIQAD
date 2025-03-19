@@ -1,6 +1,8 @@
 import xml.etree.ElementTree as ET
 from classes import DBDot, Gate
 import os
+import itertools
+from copy import deepcopy
 
 def parse_sqd_file(file_path):
     tree = ET.parse(file_path)
@@ -128,3 +130,23 @@ def circuit_to_gate(circuit):
         name += f"_{gate.name}"
     gate = Gate(db_dots, pivot_dot, input_perturbers, name)
     return gate
+
+
+# Tester
+
+def combinators(gate):
+    perturbers = gate.input_perturbers
+    num_perturbers = len(perturbers)    
+    gates = []
+    
+    for combination in itertools.product([True, False], repeat=num_perturbers):
+        selected_perturbers = [perturbers[i] for i in range(num_perturbers) if combination[i]]
+        new_gate = deepcopy(gate)
+        for perturber in selected_perturbers:
+            new_gate.remove_input(perturber)
+        gates.append(new_gate)
+    
+    return gates
+        
+    
+    
