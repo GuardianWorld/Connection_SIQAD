@@ -20,24 +20,59 @@ def get_files(directory):
                 files.append(os.path.join(root, f))
     return files
 
-def sqd_template_create(gate, prefix=""):
+def sqd_template_create(gate, prefix="", mode="save", mu=-0.28, eps_r=4.1, debye_length=1.8, anneal_cycles=10000):
     date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    header = """<?xml version="1.0" encoding="UTF-8"?>
+    if(mode == "save"):
+        header = f"""<?xml version="1.0" encoding="UTF-8"?>
     <siqad>
         <!--Program Flags-->
         <program>
             <file_purpose>save</file_purpose>
             <version>0.3.3</version>
-            <date>2025-02-26 21:36:59</date>
+            <date>{date}</date>
         </program>
         <!--GUI Flags-->
         <gui>
             <zoom>0.0396305</zoom>
             <displayed_region x1="-237.191" y1="-87.5589" x2="27.7564" y2="24.9808"/>
             <scroll x="-338" y="-931"/>
-    </gui>
-    <layers>
+    </gui>"""
+    else:
+        header = f"""<?xml version="1.0" encoding="UTF-8"?>
+    <siqad>
+        <!--Program Flags-->
+        <program>
+        <file_purpose>simulation</file_purpose>
+        <version>0.3.3</version>
+        <date>{date}</date>
+        </program>
+        <sim_params>
+            <T_e_inv_point>0.09995000064373016</T_e_inv_point>
+            <T_init>500</T_init>
+            <T_min>2</T_min>
+            <T_schedule>exponential</T_schedule>
+            <anneal_cycles>{anneal_cycles}</anneal_cycles>
+            <debye_length>{debye_length}</debye_length>
+            <eps_r>{eps_r}</eps_r>
+            <hop_attempt_factor>5</hop_attempt_factor>
+            <muzm>{mu}</muzm>
+            <num_instances>-1</num_instances>
+            <phys_validity_check_cycles>10</phys_validity_check_cycles>
+            <reset_T_during_v_freeze_reset>false</reset_T_during_v_freeze_reset>
+            <result_queue_size>0.10000000149011612</result_queue_size>
+            <strategic_v_freeze_reset>false</strategic_v_freeze_reset>
+            <v_freeze_end_point>0.4000000059604645</v_freeze_end_point>
+            <v_freeze_init>-1</v_freeze_init>
+            <v_freeze_reset>-1</v_freeze_reset>
+            <v_freeze_threshold>4</v_freeze_threshold>
+        </sim_params>
+        <gui>
+            <zoom>0.0247393</zoom>
+            <displayed_region x1="-163.707" y1="-62.6532" x2="260.718" y2="117.626"/>
+            <scroll x="-146" y="-396"/>
+        </gui>"""
+    
+    pre_middle = """<layers>
         <layer_prop>
             <name>Lattice</name>
             <type>Lattice</type>
@@ -107,11 +142,14 @@ def sqd_template_create(gate, prefix=""):
             <physloc x="{dot.physloc['x']}" y="{dot.physloc['y']}"/>
             <color>{dot.color}</color>
         </dbdot>"""
-
+    print("hello?")
     middle = middle[1:]
-    name = prefix + gate.name + ".sqd"
+    if(mode == "save"):
+        name = prefix + gate.name + ".sqd"
+    else:
+        name = prefix + gate.name + "_simulation.xml"
     
-    return name , header + middle + bottom
+    return name , header + pre_middle + middle + bottom
     
         
     
