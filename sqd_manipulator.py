@@ -95,6 +95,19 @@ def find_pivot_dot(dots):
     
     return pivot_dot
 
+def find_output_dot(dots):
+    #Get the perturber that is the closest (on top) of the pivot dot
+    closest_dot = None
+    
+    min_m = min(dot.latcoord['m'] for dot in dots)
+    min_n = 0
+    
+    #Check if any dots are right above the pivot dot (up to a 2 dot distance in both positive and negative m)
+    for dot in dots:
+        if dot.latcoord['m'] == min_m and abs(dot.latcoord['n']) <= 2:
+            closest_dot = dot
+    
+
 def shift_gate_dots(gate, shiftn, shiftm):
     for dot in gate.db_dots:
         dot.latcoord['n'] = dot.latcoord['n'] + shiftn

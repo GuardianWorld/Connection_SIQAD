@@ -7,6 +7,17 @@ def make_file(file, content):
     with open(file, "w") as f:
         f.write(content)
 
+def clear_folder(folder):
+    #just delete the whole folder and have it remade
+    if os.path.exists(folder):
+        for root, dirs, files in os.walk(folder):
+            for f in files:
+                os.remove(os.path.join(root, f))
+            for d in dirs:
+                os.rmdir(os.path.join(root, d))
+        make_dir(folder)
+    else:
+        make_dir(folder)
 
 def make_dir(directory):
     if not os.path.exists(directory):
@@ -142,14 +153,13 @@ def sqd_template_create(gate, prefix="", mode="save", mu=-0.28, eps_r=4.1, debye
             <physloc x="{dot.physloc['x']}" y="{dot.physloc['y']}"/>
             <color>{dot.color}</color>
         </dbdot>"""
-    print("hello?")
     middle = middle[1:]
     if(mode == "save"):
         name = prefix + gate.name + ".sqd"
     else:
-        name = prefix + gate.name + "_simulation.xml"
+        name = prefix + gate.name + ".xml"
     
     return name , header + pre_middle + middle + bottom
     
-        
+
     

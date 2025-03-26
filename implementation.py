@@ -1,4 +1,6 @@
 import subprocess
+import sys
+import os
 
 
 ##Do all the things you need over here for gate permutation
@@ -37,4 +39,17 @@ def call_analysis():
 ## -> If the first DB after the booster (Lets call it Output-MID) is being checked and it also gives a wrong result
 ## -> Move the gate closer to the booster, or further away from the booster, etc.
 
-call_analysis()
+def call_simmaneal(file, result_name):
+    if(os.name == 'posix'):
+        sim = "./simulators/simanneal/simanneal"
+        result_path = "./xml/" + result_name
+    else:
+        sim = "simulators\\simanneal\\simanneal.exe"
+        result_path = "xml\\" + result_name
+        
+    command = sim + " " + file + " " + result_path
+    print("Calling Simanneal for file: " + file + " please wait!", end='\r')
+    print(command)
+    sys.stdout.flush()
+    #subprocess.run(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
