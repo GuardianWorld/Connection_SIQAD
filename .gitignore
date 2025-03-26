@@ -1,0 +1,11 @@
+./old
+./results
+./results/*
+./simulation
+./simulation/*
+./sqd
+./sqd/*
+./temp
+./temp/*
+./xml
+./xml/*
