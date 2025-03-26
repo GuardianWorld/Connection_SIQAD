@@ -125,6 +125,8 @@ def main():
     file_manager.make_dir("temp")
     file_manager.make_dir("xml")
     
+    batch_menu()
+    
     while(True):
         files = file_manager.get_files("sqd")
         gates = []

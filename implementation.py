@@ -51,5 +51,5 @@ def call_simmaneal(file, result_name):
     print("Calling Simanneal for file: " + file + " please wait!", end='\r')
     print(command)
     sys.stdout.flush()
-    #subprocess.run(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
