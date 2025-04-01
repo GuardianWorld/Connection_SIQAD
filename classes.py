@@ -17,11 +17,12 @@ class DBDot:
         self.physloc = {'x': x, 'y': y}
         
 class Gate:
-    def __init__(self, db_dots, pivot_dot, input_perturbers, name=None):
+    def __init__(self, db_dots, pivot_dot, input_perturbers, output_dot, name=None):
         self.db_dots = db_dots
         self.pivot_dot = pivot_dot
         self.input_perturbers = input_perturbers
         self.name = name
+        self.output_dot = output_dot
 
     def __repr__(self):
         return (f"Gate(db_dots={self.db_dots}, pivot_dot={self.pivot_dot}, "

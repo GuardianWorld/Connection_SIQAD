@@ -125,7 +125,7 @@ def main():
     file_manager.make_dir("temp")
     file_manager.make_dir("xml")
     
-    batch_menu()
+    #batch_menu()
     
     while(True):
         files = file_manager.get_files("sqd")
@@ -137,7 +137,8 @@ def main():
         print("3. Test a gate or circuit file")
         print("4. Make all input combinations of a gate")
         print("5. Make simulation file for a circuit")
-        print("6. Batch Menu")
+        print("6. Load a gate and find the output perturber")
+        print("8. Batch Menu")
         print(f"9. Change wire lenght | current: {wire_lenght}")
         print("0. Exit")
         
@@ -245,6 +246,21 @@ def main():
             except:
                 print("Invalid input")
         elif(choice == "6"):
+            all_files = files.copy()
+            results_files = file_manager.get_files("results")
+            all_files.extend(results_files)
+            
+            print("Choose a file")
+            for i in range(len(all_files)):
+                print(str(i) + ". " + all_files[i])
+                
+            try:
+                file = all_files[int(input("File: "))]
+                gate = sqd_manipulator.main_operator(file)
+                print(gate.output_dot)
+            except:
+                print("Invalid input")
+        elif(choice == "8"):
             batch_menu()
         elif(choice == "9"):
             try:

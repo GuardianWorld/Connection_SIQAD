@@ -1,4 +1,5 @@
 import xml.etree.ElementTree as ET
+from xmlrpc.client import MAXINT
 from classes import DBDot, Gate
 import os
 import itertools
@@ -95,18 +96,21 @@ def find_pivot_dot(dots):
     
     return pivot_dot
 
-def find_output_dot(dots):
-    #Get the perturber that is the closest (on top) of the pivot dot
+def find_output_dot(dots, pivot_dot):
     closest_dot = None
-    
-    min_m = min(dot.latcoord['m'] for dot in dots)
-    min_n = 0
-    
-    #Check if any dots are right above the pivot dot (up to a 2 dot distance in both positive and negative m)
+    closest_m = MAXINT
+    closest_n = MAXINT
     for dot in dots:
-        if dot.latcoord['m'] == min_m and abs(dot.latcoord['n']) <= 2:
+        #Get the nearest dot to 0, 0
+        
+        if abs(dot.latcoord['m']) <= abs(closest_m) and abs(dot.latcoord['n']) <= abs(closest_n):
+            if(dot.latcoord['m'] == pivot_dot.latcoord['m'] and dot.latcoord['n'] == pivot_dot.latcoord['n']):
+                continue
+            closest_m = dot.latcoord['m']
+            closest_n = dot.latcoord['n']
             closest_dot = dot
     
+    return closest_dot
 
 def shift_gate_dots(gate, shiftn, shiftm):
     for dot in gate.db_dots:
@@ -122,12 +126,13 @@ def main_operator(file):
         
     dots, pivot_dot = set_dots_to_minimum(dots)
     perturbers = get_input_perturbers(dots)
+    output_dot = find_output_dot(dots, pivot_dot)
     if os.name == 'posix':
         name = file.split("/")[-1]
     else:
         name = file.split("\\")[-1]
     name = name.split(".")[0]
-    gate = Gate(dots, pivot_dot, perturbers, name)
+    gate = Gate(dots, pivot_dot, perturbers,output_dot, name)
     return gate
     
 def circuit_to_gate(circuit):
