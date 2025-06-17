@@ -60,6 +60,10 @@ class Gate:
         input_dot = self.find_input_dot(dot_n, dot_m, dot_l)
         self.db_dots.remove(dot)
         self.input_perturbers.remove(input_dot)
+    
+    def color_inputs_orange(self):
+        for dot in self.input_perturbers:
+            dot.color = "orange"
         
       
 class Circuit:

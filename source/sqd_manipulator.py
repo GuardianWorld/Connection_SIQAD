@@ -1,6 +1,7 @@
+import math
 import xml.etree.ElementTree as ET
 from xmlrpc.client import MAXINT
-from classes import DBDot, Gate
+from source.classes import DBDot, Gate
 import os
 import itertools
 from copy import deepcopy
@@ -143,11 +144,12 @@ def circuit_to_gate(circuit):
     
     pivot_dot = circuit.pivot_dot
     input_perturbers = circuit.input_perterbers
+    output_dot = circuit.gates[0].output_dot
     name = "Circuit"
     for gate in circuit.gates:
         name += f"_{gate.name}"
-    gate = Gate(db_dots, pivot_dot, input_perturbers, name)
-    return gate
+    new_gate = Gate(db_dots, pivot_dot, input_perturbers,output_dot, name)
+    return new_gate
 
 
 # Tester
@@ -167,4 +169,57 @@ def combinators(gate):
     return gates
         
     
+## Results
+
+def read_result(file, gate):
+    print("file: " + file)
+
+    tree = ET.parse(file)
+    root = tree.getroot()
+    indexes = []
+
+    i = 0
+    for dbdot in root.findall(".//dbdot"):
+        x = float(dbdot.get("x"))
+        y = float(dbdot.get("y"))
+        
+        #print(f"dbdot: {x}, {y}")
+    
+        if x == gate.output_dot.physloc['x'] and y == gate.output_dot.physloc['y']:
+            #print("Found output dot")
+            #print(f"dbdot: {x}, {y} == output dot: {gate.output_dot.physloc['x']}, {gate.output_dot.physloc['y']}")
+            #print(gate.db_dots[i])
+            #print(i)
+            indexes.append(i)
+        
+        i = i + 1
+
+    biggest = []
+    lowest_energy = math.inf
+
+    for dist in root.findall(".//dist"):
+        energy = float(dist.get("energy"))
+        count = int(dist.get("count"))
+        physically_valid = int(dist.get("physically_valid")) == 1
+        state_count = int(dist.get("state_count"))
+        symbol = dist.text
+        if not physically_valid:
+            continue
+
+        if energy < lowest_energy:
+            biggest = [energy, count, physically_valid, state_count, symbol]
+            lowest_energy = energy
+    
+    symbol = biggest[4]
+    symbol_list = []
+
+    for index in indexes:
+        symbol_list.append(symbol[index])
+    #print("Symbol list: " + str(symbol_list))
+
+    for symbol in symbol_list:
+        if symbol == "-":
+            symbol_list[symbol_list.index(symbol)] = "1"
+
+    return symbol_list, energy
     

@@ -1,0 +1,48 @@
+/* Default (horizontal) */
+.flex-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    flex-direction: column;
+    justify-content: flex-end !important;
+}
+
+/* Stack vertically on small screens */
+@media (max-width: 1000px) {
+    .flex-row {
+        flex-direction: column !important;
+        flex-wrap: nowrap;
+    }
+
+    .flex-row > div {
+        width: 100% !important; 
+        margin-bottom: 20px;
+    }
+}
+
+/* Inside assets/styles.css */
+.rc-slider {
+    height: 12px !important;
+}
+
+.rc-slider-track {
+    background-color: #00bcd4;
+    height: 4px;
+}
+
+.rc-slider-handle {
+    height: 16px;
+    width: 16px;
+    margin-top: -6px;
+    background-color: #ffffff;
+    border: solid 2px #00bcd4;
+}
+
+.rc-slider-rail {
+    height: 4px;
+    background-color: #666;
+}
+
+.ppm-slider{
+    transform: translateY(16px);  /* 👈 fine-tune this value */
+}

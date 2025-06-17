@@ -1,7 +1,7 @@
 import subprocess
 import sys
 import os
-
+from tabulate import tabulate
 
 ##Do all the things you need over here for gate permutation
 ##Make SQD file, txt with the coordinates you want to permutate and outputs and the file with truth table;
@@ -39,17 +39,23 @@ def call_analysis():
 ## -> If the first DB after the booster (Lets call it Output-MID) is being checked and it also gives a wrong result
 ## -> Move the gate closer to the booster, or further away from the booster, etc.
 
-def call_simmaneal(file, result_name):
+def make_table(headers, rows):
+    cleaned_data = [[cell[0] if isinstance(cell, list) else cell for cell in row] for row in rows]
+    return tabulate(cleaned_data, headers=headers, tablefmt="grid")
+    
+
+def call_simmaneal(file, result_name):    
     if(os.name == 'posix'):
-        sim = "./simulators/simanneal/simanneal"
-        result_path = "./xml/" + result_name
+        sim = "./data/simulators/simanneal/simanneal"
+        result_path = "./data/xml/" + result_name
     else:
-        sim = "simulators\\simanneal\\simanneal.exe"
-        result_path = "xml\\" + result_name
+        sim = "data\\simulators\\simanneal\\simanneal.exe"
+        result_path = "data\\xml\\" + result_name
         
     command = sim + " " + file + " " + result_path
     print("Calling Simanneal for file: " + file + " please wait!", end='\r')
     print(command)
     sys.stdout.flush()
     subprocess.run(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return result_path
 

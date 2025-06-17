@@ -1,0 +1,44 @@
+/* dropdown base */
+.Select-control {
+    background-color: #1e1e1e !important;
+    color: white !important;
+    border-color: #555 !important;
+}
+
+.Select-value-label{
+    color: white !important;  /* Color of the selected value */
+}
+
+/* dropdown menu */
+.Select-menu-outer {
+    background-color: #2e2e2e !important;
+    color: white !important;
+}
+
+/* dropdown options */
+.Select-option {
+    background-color: #2e2e2e !important;
+    color: white !important;
+}
+
+.Select-option:hover {
+    background-color: #444 !important;
+}
+
+/* placeholder text */
+.Select-placeholder {
+    color: #aaa !important;
+}
+
+.Select-single-value {
+    color: white !important;  /* Color of the selected value */
+}
+
+.Select-control {
+    color: white !important;  /* Change the text color to white inside the dropdown */
+}
+
+.Select-placeholder {
+    color: #aaa !important;  /* Placeholder color (light gray) */
+}
+

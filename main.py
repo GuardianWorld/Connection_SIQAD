@@ -1,24 +1,57 @@
 import xml.etree.ElementTree as ET
 import os
-from classes import DBDot, Gate
-import sqd_manipulator
-import gate_connector
-import file_manager
-import implementation
+from source import sqd_manipulator, gate_connector, file_manager, implementation
+from source.classes import DBDot, Gate, Circuit
+
+
 
 #defines
 if(os.name == 'posix'):
-    simanneal = "simulators/simanneal"
-    complete = "simulators/complete"
+    simanneal = "data/simulators/simanneal"
+    complete = "data/simulators/complete"
 else:
-    simanneal = "simulators\\simanneal"
-    complete = "simulators\\complete"
+    simanneal = "data\\simulators\\simanneal"
+    complete = "data\\simulators\\complete"
+
+
+def operations(gate):
+    if os.name == 'posix':  
+        file_manager.clear_folder("./data/temp")
+        file_manager.clear_folder("./data/xml")
+    else:
+        file_manager.clear_folder("data\\temp")
+        file_manager.clear_folder("data\\xml")
+    
+    Results = []
+    gates = sqd_manipulator.combinators(gate)
+    for i in range(len(gates)):
+        file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation")
+        file_path = None
+        if(os.name == 'posix'):
+            file_path = "data/temp/" + file_name
+            file_manager.make_file(file_path, template)
+        else:
+            file_path = "data\\temp\\" + file_name
+            file_manager.make_file(file_path, template)
+        
+        result_name = "result_" + file_name
+        print(">>>>>", result_name)
+        result_path = implementation.call_simmaneal(file_path, result_name)
+        print("Result path: " + result_path)
+        symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
+        Results.append([symbol_table, i, energy])
+    
+    ## Print a neat table
+    print(implementation.make_table(["Result", gate.name, "Energy"], Results))
 
 def batch_menu():
     global wire_lenght
     simulator_used = simanneal
     while(True):
-        files = file_manager.get_files("sqd")
+        if(os.name == 'posix'):
+            files = file_manager.get_files("./data/sqd")
+        else:
+            files = file_manager.get_files("data\\sqd")
         gates = []
         gate = None
         
@@ -26,7 +59,6 @@ def batch_menu():
         print(f"Simulator: {simulator_used}")
         print("1. Connect 2 gates + operations")
         print("2. Connect 3 gates + operations")
-        print("3. Do Operations on Any files.")
         print("8. Change simulator (Simanneal/Complete)")
         print(f"9. Change wire lenght | current: {wire_lenght}")
         print("0. Exit")
@@ -51,6 +83,7 @@ def batch_menu():
             
             circuit = gate_connector.connect_2_gates(gate1, gate2, wires=wire_lenght)            
             gate = sqd_manipulator.circuit_to_gate(circuit)
+            print(gate.name)
         if(choice == "2"):
             print("Choose 3 files to connect")
             file1 = files[int(input("File 1: "))]
@@ -63,21 +96,6 @@ def batch_menu():
             
             circuit = gate_connector.connect_3_gates(gate1, gate2, gate3, wires=wire_lenght)            
             gate = sqd_manipulator.circuit_to_gate(circuit)
-        elif(choice == "3"):
-            all_files = files.copy()
-            results_files = file_manager.get_files("results")
-            all_files.extend(results_files)
-            
-            print("Choose a file to test")
-            for i in range(len(all_files)):
-                print(str(i) + ". " + all_files[i])
-            
-            try:
-                file = all_files[int(input("File: "))]
-                gate = sqd_manipulator.main_operator(file)
-            except:
-                print("Invalid input")
-                pass
         elif(choice == "8"):
             if(simulator_used == simanneal):
                 simulator_used = complete
@@ -90,40 +108,24 @@ def batch_menu():
                 print("Invalid input")
                 
         #continue operations that are common to many choices
-        if(choice == "1" or choice == "2" or choice == "3"):
-            #Clean the TEMP folder
-            file_manager.clear_folder("temp")
-            gate.print_gate()
-            
-            #Make all combinations
-            gates = sqd_manipulator.combinators(gate)
-            for i in range(len(gates)):
-                file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation")
-                file_path = None
-                if(os.name == 'posix'):
-                    file_path = "temp/" + file_name
-                    file_manager.make_file(file_path, template)
-                else:
-                    file_path = "temp\\" + file_name
-                    file_manager.make_file(file_path, template)
-                
-                result_name = "result_" + file_name
-                implementation.call_simmaneal(file_path, result_name)
-                    
-            #Run the simulator
-            
-            
-                    
-        
+        if(choice == "1" or choice == "2"):
+            operations(gate)
+            print("Done!")
 def main():
     global wire_lenght
     wire_lenght = 1
-    file_manager.make_dir("sqd")
-    file_manager.make_dir("results")
-    file_manager.make_dir("combinations")
-    file_manager.make_dir("simulation")
-    file_manager.make_dir("temp")
-    file_manager.make_dir("xml")
+    if(os.name == 'posix'):
+        file_manager.clear_folder("./data/results")
+        file_manager.clear_folder("./data/combinations")
+        file_manager.clear_folder("./data/simulation")
+        file_manager.clear_folder("./data/temp")
+        file_manager.clear_folder("./data/xml")
+    else:
+        file_manager.clear_folder("data\\results")
+        file_manager.clear_folder("data\\combinations")
+        file_manager.clear_folder("data\\simulation")
+        file_manager.clear_folder("data\\temp")
+        file_manager.clear_folder("data\\xml")
     
     #batch_menu()
     
@@ -138,6 +140,7 @@ def main():
         print("4. Make all input combinations of a gate")
         print("5. Make simulation file for a circuit")
         print("6. Load a gate and find the output perturber")
+        print("7. test a gate with all operators.")
         print("8. Batch Menu")
         print(f"9. Change wire lenght | current: {wire_lenght}")
         print("0. Exit")
@@ -147,7 +150,7 @@ def main():
         if(choice == "0"):
             break
         
-        if(choice == "1" or choice == "2"):
+        if(choice == "1" or choice == "2" or choice == "7"):
             print("Avaliable files: ")
             for i in range(len(files)):
                 print(str(i) + ". " + files[i])
@@ -166,9 +169,9 @@ def main():
             file_name, template = file_manager.sqd_template_create(sqd_manipulator.circuit_to_gate(circuit))
             print(file_name)
             if(os.name == 'posix'):
-                file_manager.make_file("results/" + file_name, template)
+                file_manager.make_file("data/results/" + file_name, template)
             else:
-                file_manager.make_file("results\\" + file_name, template)
+                file_manager.make_file("data\\results\\" + file_name, template)
             
         if(choice == "2"):
             print("Choose 3 files to connect")
@@ -185,9 +188,9 @@ def main():
             
             file_name, template = file_manager.sqd_template_create(sqd_manipulator.circuit_to_gate(circuit))
             if(os.name == 'posix'):
-                file_manager.make_file("results/" + file_name, template)
+                file_manager.make_file("data/results/" + file_name, template)
             else:
-                file_manager.make_file("results\\" + file_name, template)    
+                file_manager.make_file("data\\results\\" + file_name, template)    
 
         elif(choice == "3"):
             all_files = files.copy()
@@ -221,9 +224,9 @@ def main():
                 for i in range(len(gates)):
                     file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_")
                     if(os.name == 'posix'):
-                        file_manager.make_file("combinations/" + file_name, template)
+                        file_manager.make_file("data/combinations/" + file_name, template)
                     else:
-                        file_manager.make_file("combinations\\" + file_name, template)
+                        file_manager.make_file("data\\combinations\\" + file_name, template)
             except:
                 print("Invalid input")
         elif(choice == "5"):
@@ -240,9 +243,9 @@ def main():
                 gate = sqd_manipulator.main_operator(file)
                 file_name, template = file_manager.sqd_template_create(gate, mode="simulation")
                 if(os.name == 'posix'):
-                    file_manager.make_file("simulation/" + file_name, template)
+                    file_manager.make_file("data/simulation/" + file_name, template)
                 else:
-                    file_manager.make_file("simulation\\" + file_name, template)
+                    file_manager.make_file("data\\simulation\\" + file_name, template)
             except:
                 print("Invalid input")
         elif(choice == "6"):
@@ -260,6 +263,13 @@ def main():
                 print(gate.output_dot)
             except:
                 print("Invalid input")
+        elif(choice == "7"):
+            file = files[int(input("File 1: "))]
+            gate = sqd_manipulator.main_operator(file)
+            gate.print_gate()
+            operations(gate)
+
+            
         elif(choice == "8"):
             batch_menu()
         elif(choice == "9"):

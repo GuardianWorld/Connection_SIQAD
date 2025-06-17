@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 
+
 #Gets all .SQD files in the directory and its subdirectories
 
 def make_file(file, content):
@@ -23,11 +24,11 @@ def make_dir(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-def get_files(directory):
+def get_files(directory, ending=".sqd"):
     files = []
     for root, dirs, file in os.walk(directory):
         for f in file:
-            if f.endswith(".sqd"):
+            if f.endswith(ending):
                 files.append(os.path.join(root, f))
     return files
 
@@ -160,6 +161,4 @@ def sqd_template_create(gate, prefix="", mode="save", mu=-0.28, eps_r=4.1, debye
         name = prefix + gate.name + ".xml"
     
     return name , header + pre_middle + middle + bottom
-    
-
     

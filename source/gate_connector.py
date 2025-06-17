@@ -1,5 +1,5 @@
-from classes import DBDot, Gate, Circuit
-import sqd_manipulator
+from source.classes import DBDot, Gate, Circuit
+from source import sqd_manipulator
 
 def connect_2_gates(gate1, gate2, wire=None, wires=0, direction="left"):
     input_perturbers = []
