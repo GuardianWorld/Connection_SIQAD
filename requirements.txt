@@ -3,7 +3,6 @@ dash
 pandas
 numpy
 plotly
-scikit-learn
 umap-learn
 matplotlib
 dash_bootstrap_components
