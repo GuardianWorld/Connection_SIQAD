@@ -75,5 +75,11 @@ def plot_NML(gate, size):
         margin=dict(l=10, r=10, t=10, b=10),
     )
 
+    # Add gate DBs.
+
+    if gate:
+        print("Plotting gate:", gate.name)
+        print("Gate dots:", gate.db_dots)
+
     return fig
 

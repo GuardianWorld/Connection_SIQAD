@@ -4,6 +4,20 @@ from datetime import datetime
 
 #Gets all .SQD files in the directory and its subdirectories
 
+def clear_folders():
+    if(os.name == 'posix'):
+        clear_folder("./data/results")
+        clear_folder("./data/combinations")
+        clear_folder("./data/simulation")
+        clear_folder("./data/temp")
+        clear_folder("./data/xml")
+    else:
+        clear_folder("data\\results")
+        clear_folder("data\\combinations")
+        clear_folder("data\\simulation")
+        clear_folder("data\\temp")
+        clear_folder("data\\xml")
+
 def make_file(file, content):
     with open(file, "w") as f:
         f.write(content)

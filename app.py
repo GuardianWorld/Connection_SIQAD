@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 import dash_bootstrap_components as dbc
 from source.plotting import plot_NML
+import os
+from pages import mainpage
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 server = app.server
@@ -14,81 +16,25 @@ app.title = "SIQAD Interconector"
 
 app.layout = html.Div([
     dcc.Store(id='files-store'),
+    dcc.Interval(id='load-files', interval=1*1000, n_intervals=0, max_intervals=1),
     dcc.Store(id='placeholder-fig'),
     html.Div([
         html.Div([
             html.H3("SiDB Interconector", style={'textAlign': 'center', 'color': '#ffffff'}),
         ], style={'flex': '1'}),
         html.Div([
-            dbc.Button("🔵 Main", id="btn-main", color="secondary", className="me-2", size="sm", disabled=False),
+            dbc.Button("🔵 Main", id="btn-main", color="primary", className="me-2", size="sm", disabled=False),
             dbc.Button("🟠 Input selector", id="btn-input", color="secondary", className="me-2", size="sm", disabled=False),
             dbc.Button("❓ Documentation", id="btn-info", color="secondary", className="me-2", size="sm"),
         ], style={'display': 'flex', 'alignItems': 'center', 'gap': '10px'}),
     ], style={'display': 'flex', 'alignItems': 'center', 'gap': '10px'}),
 
     html.Hr(),
+    #page "Main"
     html.Div([
-        dcc.Dropdown(id='gate-dropdown', multi=True, placeholder='Select gates', style={'width': '100%', 'marginRight': '10px', 'marginBottom': '10px'}),
-        html.Div([
-            html.Div([
-                 dcc.Graph(id='gate-view-plot', style={'height': '700px'}),
-            ], style={'width': '60%', 'paddingLeft': '10px'}),
-
-            html.Div([
-                html.Pre(id='backend-log', style={
-                    'height': '700px',
-                    'overflowY': 'scroll',
-                    'backgroundColor': '#111',
-                    'color': '#0f0',
-                    'paddingleft': '10px',
-                    'border': '1px solid #333',
-                    'fontFamily': 'monospace',
-                    'whiteSpace': 'pre-wrap'
-                })
-            ], style={
-                'width': '40%',
-                'paddingLeft': '10px',
-                'justifyContent': 'flex-end'
-            }),
-        ], style={'display': 'flex', 'flexDirection': 'column'}, className='flex-row'),
-
-        html.H1("Truth Table visualization", id='truth-table-label', style={'fontSize': '30px', 'marginTop': '40px', 'textAlign': 'center', 'color': '#ffffff', 'width': '100%'}),
-        html.Div([
-            html.Div([
-                dcc.Graph(id='specific-gate', style={'height': '700px'}),
-                dcc.Slider(
-                    id='gate-slider',
-                    min=0,
-                    max=0,
-                    step=1,
-                    value=0,
-                    tooltip={"placement": "bottom", "always_visible": False},
-                    className='ppm-slider'
-                ),
-            ], style={'width': '50%', 'paddingLeft': '10px', 'display': 'flex', 'flexDirection': 'column'}),
-            html.Div([
-                dash_table.DataTable(
-                    id='circuit-truth-table',
-                    columns=[
-                        {"name": "Result", "id": "result"},
-                        {"name": "Expected", "id": "expected"},
-                        {"name": "File_ID", "id": "file_id"},
-                        {"name": "Energy", "id": "energy"},
-                    ],
-                    style_table={'overflowX': 'auto'},
-                    style_header={'backgroundColor': '#1e1e1e', 'color': 'white'},
-                    style_cell={'backgroundColor': '#111111', 'color': 'white'},
-            )   
-            ], style={
-                'width': '50%',
-                'paddingLeft': '10px',
-                'justifyContent': 'flex-end'
-            }),
-        ], style={'display': 'flex', 'flexDirection': 'column'}, className='flex-row'),
-
-
-
-
+        html.Div(mainpage.layout, id='main-page', style={'display': 'block'}),
+        html.Div(id='input-page', style={'display': 'none'}),
+        html.Div(id='info-page', style={'display': 'none'}),
     ]),
 
     html.Hr(),
@@ -101,28 +47,55 @@ app.layout = html.Div([
 
 ])
 
-#Callbacks
 @app.callback(
-    Output('gate-view-plot', 'figure'),
-    Input('gate-dropdown', 'value'),
-    State('files-store', 'data')
+    Output('btn-main', 'color'),
+    Output('btn-input', 'color'),
+    Output('btn-info', 'color'),
+    Input('btn-main', 'n_clicks'),
+    Input('btn-input', 'n_clicks'),
+    Input('btn-info', 'n_clicks'),
 )
-def update_gate_view(selected_gates, files_data):
-    if not selected_gates or not files_data:
-        return plot_NML('', 20)
+def update_button_colors(main_clicks, input_clicks, info_clicks):
+    ctx = dash.callback_context
+
+    if not ctx.triggered:
+        triggered_id = 'btn-main'
+    else:
+        triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    if triggered_id == 'btn-main':
+        return 'primary', 'secondary', 'secondary'
+    elif triggered_id == 'btn-input':
+        return 'secondary', 'primary', 'secondary'
+    elif triggered_id == 'btn-info':
+        return 'secondary', 'secondary', 'primary'
+
+    return 'secondary', 'secondary', 'secondary'
 
 @app.callback(
-    Output('specific-gate', 'figure'),
-    Input('gate-dropdown', 'value'),
-    State('files-store', 'data')
+    Output('main-page', 'style'),
+    Output('input-page', 'style'),
+    Output('info-page', 'style'),
+    Input('btn-main', 'n_clicks'),
+    Input('btn-input', 'n_clicks'),
+    Input('btn-info', 'n_clicks'),
 )
 
-def update_specific_gate(selected_gates, files_data):
-    if not selected_gates or not files_data:
-        return plot_NML('', 20)
+def toggle_pages(main_clicks, input_clicks, info_clicks):
+    ctx = dash.callback_context
 
-   
+    if not ctx.triggered:
+        triggered_id = 'btn-main'
+    else:
+        triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
+    styles = {
+        'btn-main': [{'display': 'block'}, {'display': 'none'}, {'display': 'none'}],
+        'btn-input': [{'display': 'none'}, {'display': 'block'}, {'display': 'none'}],
+        'btn-info': [{'display': 'none'}, {'display': 'none'}, {'display': 'none'}],
+    }
+
+    return styles.get(triggered_id, [{'display': 'block'}, {'display': 'none'}, {'display': 'none'}])
 
 if __name__ == '__main__':
     app.run(debug=True)
