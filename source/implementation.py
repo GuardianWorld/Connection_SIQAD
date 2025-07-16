@@ -42,7 +42,10 @@ def call_analysis():
 def make_table(headers, rows):
     cleaned_data = [[cell[0] if isinstance(cell, list) else cell for cell in row] for row in rows]
     return tabulate(cleaned_data, headers=headers, tablefmt="grid")
-    
+
+def tabulate_to_dash(headers, rows):
+    cleaned_data = [[cell[0] if isinstance(cell, list) else cell for cell in row] for row in rows]
+    return tabulate(cleaned_data, headers=headers, tablefmt="html")
 
 def call_simmaneal(file, result_name):    
     if(os.name == 'posix'):
@@ -53,8 +56,8 @@ def call_simmaneal(file, result_name):
         result_path = "data\\xml\\" + result_name
         
     command = sim + " " + file + " " + result_path
-    print("Calling Simanneal for file: " + file + " please wait!", end='\r')
-    print(command)
+    print("Simulating: " + file)
+    #print(command)
     sys.stdout.flush()
     subprocess.run(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return result_path

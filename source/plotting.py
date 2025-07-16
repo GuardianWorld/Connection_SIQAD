@@ -84,7 +84,7 @@ def plot_NML(gate, viewport=None):
             range=[min(y_coords) - 1, max(y_coords) + 1],
         ),
         font=dict(color='white'),
-        height=650,
+        height=700,
         margin=dict(l=10, r=10, t=10, b=10),
     )
 

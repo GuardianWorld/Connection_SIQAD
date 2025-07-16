@@ -1,13 +1,15 @@
 import dash
-from dash import html, dcc, callback, Input, Output, State, dash_table
+from dash import clientside_callback, html, dcc, callback, Input, Output, State, dash_table
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 import dash_bootstrap_components as dbc
-from source import file_manager, sqd_manipulator, gate_connector, StreamCapture
+from source import file_manager, sqd_manipulator, gate_connector, StreamCapture, implementation
 from source.plotting import plot_NML, get_top_size, get_bottom_size, get_viewport, viewport_size
 import os
+import time
+from dash import ClientsideFunction
 
 layout = html.Div([
     dcc.Interval(id="log-updater", interval=1000, n_intervals=0),  # every 1s
@@ -19,11 +21,12 @@ layout = html.Div([
         dbc.Button("Connect", id="btn-connect", color="secondary", disabled=False, style={'width': '15%', 'marginRight': '10px', 'height': '35px'}),
         dbc.Button("Undo", id="btn-undo", color="secondary", disabled=False, style={'width': '15%', 'marginRight': '10px', 'height': '35px'}),
         dbc.Button("Clear", id="btn-clear", color="secondary", disabled=False, style={'width': '15%', 'marginRight': '10px', 'height': '35px'}),
+        dbc.Button("Simulate", id="btn-simulate", color="primary", disabled=False, style={'width': '15%', 'marginRight': '10px', 'height': '35px'}),
     ], style={'display': 'flex'}),
     html.Div([
         html.Div([
                 dcc.Graph(id='gate-view-plot', style={'height': '700px'}),
-        ], style={'width': '60%', 'paddingLeft': '10px'}),
+        ], style={'width': '50%', 'paddingLeft': '10px'}),
 
         html.Div([
             html.Pre(id='backend-log', style={
@@ -37,7 +40,7 @@ layout = html.Div([
                 'whiteSpace': 'pre-wrap'
             })
         ], style={
-            'width': '40%',
+            'width': '50%',
             'paddingLeft': '10px',
             'justifyContent': 'flex-end'
         }),
@@ -80,6 +83,10 @@ layout = html.Div([
     
 
 placeholder_fig = plot_NML('')
+placeholder_fig.update_layout(
+    title="Select a gate to view",
+    height=700,
+)
 if(os.name == 'posix'):
     simanneal = "data/simulators/simanneal"
     complete = "data/simulators/complete"
@@ -87,9 +94,12 @@ else:
     simanneal = "data\\simulators\\simanneal"
     complete = "data\\simulators\\complete"
 
+current_sim = simanneal
+
 #Callbacks
 @callback(
     Output('gate-view-plot', 'figure'),
+    Output('gate-storage', 'data'),
     Input('btn-connect', 'n_clicks'),
     Input('btn-undo', 'n_clicks'),
     Input('btn-clear', 'n_clicks'),
@@ -99,7 +109,7 @@ else:
 )
 def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght):
     if not selected_gates or not files_data:
-        return placeholder_fig
+        return placeholder_fig, None
     fig = placeholder_fig
     
     #Print JUST the names
@@ -108,9 +118,7 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght):
 
     if len(selected_gates) == 1:
         file1 = selected_gates[0]
-        gate1 = sqd_manipulator.main_operator(file1)
-        viewport = get_viewport(gate1)
-        fig = plot_NML(gate1, viewport)
+        gate = sqd_manipulator.main_operator(file1)
     if len(selected_gates) == 2:
         file1 = selected_gates[0]
         file2 = selected_gates[1]
@@ -118,8 +126,6 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght):
         gate2 = sqd_manipulator.main_operator(file2)
         circuit = gate_connector.connect_2_gates(gate1, gate2, wires=wire_lenght)            
         gate = sqd_manipulator.circuit_to_gate(circuit)
-        viewport = get_viewport(gate)
-        fig = plot_NML(gate, viewport)
     if len(selected_gates) == 3:
         file1 = selected_gates[0]
         file2 = selected_gates[1]
@@ -129,24 +135,27 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght):
         gate3 = sqd_manipulator.main_operator(file3)
         circuit = gate_connector.connect_3_gates(gate1, gate2, gate3, wires=wire_lenght)
         gate = sqd_manipulator.circuit_to_gate(circuit)
+
+    if len(selected_gates) <= 3:
         viewport = get_viewport(gate)
         fig = plot_NML(gate, viewport)
+        print(viewport_size(viewport))
+    
+    return fig, gate.to_dict()
+    
 
-    print(viewport_size(viewport))
-    
-    return fig
-    
 
 @callback(
     Output('specific-gate', 'figure'),
-    Input('btn-connect', 'n_clicks'),
     Input('selected-gates-store', 'data'),
     State('files-store', 'data')
 )
 
-def update_specific_gate(button, selected_gates, files_data):
-    if not selected_gates or not files_data:
-        return placeholder_fig
+def update_specific_gate(selected_gates, files_data):
+    
+    fig = placeholder_fig
+    fig.update_layout(height=650)
+    return fig
 
         
 
@@ -200,8 +209,97 @@ def store_selected_gate(button1, button2, button3, selected_gate, stored):
     return stored
 
 @callback(
+    Output('circuit-truth-table', 'data'),
+    Input('btn-simulate', 'n_clicks'),
+    State('gate-storage', 'data'),
+)
+def simulate_circuit(n_clicks, gate):
+    if not gate:
+        return []
+    if os.name == 'posix':  
+        file_manager.clear_folder("./data/temp")
+        file_manager.clear_folder("./data/xml")
+    else:
+        file_manager.clear_folder("data\\temp")
+        file_manager.clear_folder("data\\xml")
+
+    gate = sqd_manipulator.Gate.from_dict(gate)
+    print("Simulator: ", current_sim)
+    print("Simulating gate:", gate.name)
+
+    Results = []
+    gates = sqd_manipulator.combinators(gate)
+    for i in range(len(gates)):
+        file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation")
+        file_path = None
+        if(os.name == 'posix'):
+            file_path = "data/temp/" + file_name
+            file_manager.make_file(file_path, template)
+        else:
+            file_path = "data\\temp\\" + file_name
+            file_manager.make_file(file_path, template)
+        
+        result_name = "result_" + file_name
+        #print(">>>>>", result_name)
+        result_path = implementation.call_simmaneal(file_path, result_name)
+        #print("Result path: " + result_path)
+        symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
+        Results.append([symbol_table, i, energy])
+    
+    print(implementation.make_table(["Result", gate.name, "Energy"], Results))
+
+    columns = ["Result", "Expected", "File_ID", "Energy"]
+
+    def clean(val):
+        if isinstance(val, (int, float, str, bool)) or val is None:
+            return val
+        return str(val)  # fallback to string
+
+    data = [
+    {
+        "result": clean(row[0]),
+        "expected": "N/A",
+        "file_id": clean(row[1]),
+        "energy": clean(row[2]),
+    }
+    for row in Results
+    ]
+
+    return data
+
+
+
+
+
+
+@callback(
     Output("backend-log", "children"),
+    Output("log-trigger", "data"),  # trigger for JS
     Input("log-updater", "n_intervals")
 )
 def update_log(n):
-    return StreamCapture.log_buffer.getvalue()
+    return StreamCapture.log_buffer.getvalue(), time.time()
+
+
+clientside_callback(
+    """
+    function(trigger) {
+        const logElement = document.getElementById('backend-log');
+        if (!logElement) {
+            return window.dash_clientside.no_update;
+        }
+
+        const threshold = 50; // pixels from bottom considered "at bottom"
+        const atBottom = logElement.scrollHeight - logElement.scrollTop - logElement.clientHeight < threshold;
+
+        if (atBottom) {
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output("log-trigger", "data", allow_duplicate=True),  # dummy output, won't change
+    Input("log-trigger", "data"),
+    prevent_initial_call=True
+)

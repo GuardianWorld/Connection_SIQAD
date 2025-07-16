@@ -172,7 +172,7 @@ def combinators(gate):
 ## Results
 
 def read_result(file, gate):
-    print("file: " + file)
+    #print("file: " + file)
 
     tree = ET.parse(file)
     root = tree.getroot()

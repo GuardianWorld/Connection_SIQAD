@@ -18,6 +18,10 @@ app.layout = html.Div([
     dcc.Store(id='files-store'),
     dcc.Store(id='wire-lenght-store', data=1),
     dcc.Store(id='selected-gates-store'),
+    dcc.Store(id='truth-table-store'),
+    dcc.Store(id='simulated-states-store'),
+    dcc.Store(id='gate-storage'),
+    dcc.Store(id='log-trigger'),
     dcc.Interval(id='load-files', interval=1*1000, n_intervals=0, max_intervals=1),
     dcc.Store(id='placeholder-fig'),
     html.Div([

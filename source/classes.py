@@ -15,6 +15,25 @@ class DBDot:
         x = self.latcoord['n'] * 3.84
         y = self.latcoord['m'] * 7.68 + self.latcoord['l'] * 2.25
         self.physloc = {'x': x, 'y': y}
+
+    def to_dict(self):
+        return {
+            'layer_id': self.layer_id,
+            'latcoord': self.latcoord,
+            'physloc': self.physloc,
+            'color': self.color,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            layer_id=data['layer_id'],
+            latcoord=data['latcoord'],
+            physloc=data['physloc'],
+            color=data['color']
+        )
+
+
         
 class Gate:
     def __init__(self, db_dots, pivot_dot, input_perturbers, output_dot, name=None):
@@ -64,6 +83,23 @@ class Gate:
     def color_inputs_orange(self):
         for dot in self.input_perturbers:
             dot.color = "orange"
+
+    def to_dict(self):
+        return {
+            'db_dots': [dot.to_dict() for dot in self.db_dots],
+            'pivot_dot': self.pivot_dot.to_dict(),
+            'input_perturbers': [pert.to_dict() for pert in self.input_perturbers],
+            'output_dot': self.output_dot.to_dict(),
+            'name': self.name,
+        }
+    
+    @classmethod
+    def from_dict(cls, data):
+        db_dots = [DBDot.from_dict(d) for d in data['db_dots']]
+        pivot_dot = DBDot.from_dict(data['pivot_dot'])
+        input_perturbers = [DBDot.from_dict(d) for d in data['input_perturbers']]
+        output_dot = DBDot.from_dict(data['output_dot'])
+        return cls(db_dots, pivot_dot, input_perturbers, output_dot, data.get('name'))
         
       
 class Circuit:
