@@ -124,6 +124,53 @@ def plot_NML(gate, viewport=None):
 
     return fig
 
+def plot_XY(info):
+    fig = go.Figure()
+
+    x_coords = []
+    y_coords = []
+    symbols = []
+    colors = []
+
+    for dot in info:
+        x_coords.append(dot[0])
+        y_coords.append(dot[1])
+        symbol = 'circle' if dot[2] == '1' else 'circle-open'
+        symbols.append(symbol)
+        colors.append('black' if dot[2] == '0' else 'blue')
+
+    #print(x_coords, y_coords, symbols, colors)
+
+    # Create a scatter plot for EACH coord
+    fig.add_trace(go.Scatter(
+        x=x_coords,
+        y=y_coords,
+        mode='markers',
+        marker=dict(
+            size=10,
+            color=colors,
+            symbol=symbols,
+        ),
+        showlegend=False
+    ))
+
+    fig.update_yaxes(autorange='reversed')
+
+    fig.update_layout(
+        margin=dict(l=10, r=10, t=10, b=10),
+        xaxis=dict(
+            visible=False,
+            range=[min(x_coords) - 1, max(x_coords) + 1],
+        ),
+        yaxis=dict(
+            visible=False,
+            range=[min(y_coords) - 1, max(y_coords) + 1],
+        ),
+        height=700,
+        )
+
+    return fig
+
 def get_viewport(gate):
     """
     Get the viewport for the gate based on its dots.

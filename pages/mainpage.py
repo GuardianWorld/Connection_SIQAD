@@ -6,13 +6,13 @@ import pandas as pd
 import numpy as np
 import dash_bootstrap_components as dbc
 from source import file_manager, sqd_manipulator, gate_connector, StreamCapture, implementation
-from source.plotting import plot_NML, get_top_size, get_bottom_size, get_viewport, viewport_size
+from source.plotting import plot_NML, get_top_size, get_bottom_size, get_viewport, viewport_size, plot_XY
 import os
 import time
 from dash import ClientsideFunction
 
 layout = html.Div([
-    dcc.Interval(id="log-updater", interval=1000, n_intervals=0),  # every 1s
+    dcc.Interval(id="log-updater", interval=500, n_intervals=0),  # every 0.5s
     html.Div([
         dcc.Dropdown(
             id='gate-dropdown',
@@ -141,23 +141,7 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght):
         fig = plot_NML(gate, viewport)
         print(viewport_size(viewport))
     
-    return fig, gate.to_dict()
-    
-
-
-@callback(
-    Output('specific-gate', 'figure'),
-    Input('selected-gates-store', 'data'),
-    State('files-store', 'data')
-)
-
-def update_specific_gate(selected_gates, files_data):
-    
-    fig = placeholder_fig
-    fig.update_layout(height=650)
-    return fig
-
-        
+    return fig, gate.to_dict()        
 
 @callback(
     Output('files-store', 'data'),
@@ -210,12 +194,13 @@ def store_selected_gate(button1, button2, button3, selected_gate, stored):
 
 @callback(
     Output('circuit-truth-table', 'data'),
+    Output('specific-gate-data', 'data'),
     Input('btn-simulate', 'n_clicks'),
     State('gate-storage', 'data'),
 )
 def simulate_circuit(n_clicks, gate):
     if not gate:
-        return []
+        return [], []
     if os.name == 'posix':  
         file_manager.clear_folder("./data/temp")
         file_manager.clear_folder("./data/xml")
@@ -228,6 +213,7 @@ def simulate_circuit(n_clicks, gate):
     print("Simulating gate:", gate.name)
 
     Results = []
+    specific_gate_data = []
     gates = sqd_manipulator.combinators(gate)
     for i in range(len(gates)):
         file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation")
@@ -244,9 +230,11 @@ def simulate_circuit(n_clicks, gate):
         result_path = implementation.call_simmaneal(file_path, result_name)
         #print("Result path: " + result_path)
         symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
+        specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))
+
         Results.append([symbol_table, i, energy])
     
-    print(implementation.make_table(["Result", gate.name, "Energy"], Results))
+    #print(implementation.make_table(["Result", gate.name, "Energy"], Results))
 
     columns = ["Result", "Expected", "File_ID", "Energy"]
 
@@ -264,10 +252,38 @@ def simulate_circuit(n_clicks, gate):
     }
     for row in Results
     ]
+    print(len(specific_gate_data), "specific gates data")
+    return data, specific_gate_data
 
-    return data
 
+@callback(
+    Output('gate-slider', 'max'),
+    Output('gate-slider', 'value'),
+    Input('specific-gate-data', 'data'),
+)
+def update_slider(specific_gate_data):
+    if not specific_gate_data:
+        return 0, 0
 
+    max_value = len(specific_gate_data) - 1
+    return max_value, 0
+
+@callback(
+    Output('specific-gate', 'figure'),
+    Input('specific-gate-data', 'data'),
+    Input('gate-slider', 'value'),
+)
+def update_specific_gate(specific_gate_data, slider_value):
+    if specific_gate_data is None:
+        return placeholder_fig
+    
+    if slider_value < 0 or slider_value >= len(specific_gate_data):
+        return placeholder_fig
+
+    gate_info = specific_gate_data[slider_value]
+    fig = plot_XY(gate_info)
+
+    return fig
 
 
 

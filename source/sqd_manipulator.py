@@ -171,6 +171,52 @@ def combinators(gate):
     
 ## Results
 
+def read_result_plusXY(file, gate):
+    tree = ET.parse(file)
+    root = tree.getroot()
+    DB_list = []
+    final_list = []
+
+    i = 0
+
+    
+    biggest = []
+    lowest_energy = math.inf
+
+    for dbdot in root.findall(".//dbdot"):
+        x = float(dbdot.get("x"))
+        y = float(dbdot.get("y"))
+
+        DB_list.append([x, y])
+
+    for dist in root.findall(".//dist"):
+        energy = float(dist.get("energy"))
+        count = int(dist.get("count"))
+        physically_valid = int(dist.get("physically_valid")) == 1
+        state_count = int(dist.get("state_count"))
+        symbol = dist.text
+        if not physically_valid:
+            continue
+
+        if energy < lowest_energy:
+            biggest = [energy, count, physically_valid, state_count, symbol]
+            lowest_energy = energy
+
+    symbol = biggest[4]
+
+    symbol = symbol.replace("-", "1")
+
+    for i in range(len(DB_list)):
+        x = DB_list[i][0]
+        y = DB_list[i][1]
+        final_list.append([x, y, symbol[i]])
+
+    #for db in final_list:
+        #print(f"DB: {db[0]}, {db[1]}, Symbol: {db[2]}")
+
+    return final_list
+
+
 def read_result(file, gate):
     #print("file: " + file)
 
