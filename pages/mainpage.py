@@ -197,8 +197,10 @@ def store_selected_gate(button1, button2, button3, selected_gate, stored):
     Output('specific-gate-data', 'data'),
     Input('btn-simulate', 'n_clicks'),
     State('gate-storage', 'data'),
+    State('sim-store', 'data'),
+    State('current-sim-store', 'data'),
 )
-def simulate_circuit(n_clicks, gate):
+def simulate_circuit(n_clicks, gate, simulator_path, current_sim):
     if not gate:
         return [], []
     if os.name == 'posix':  
@@ -209,7 +211,21 @@ def simulate_circuit(n_clicks, gate):
         file_manager.clear_folder("data\\xml")
 
     gate = sqd_manipulator.Gate.from_dict(gate)
-    print("Simulator: ", current_sim)
+
+    if current_sim is None:
+        sim = "data/simulators/simanneal"
+    else:
+        sim = current_sim
+
+    # cleanup sim
+    if(os.name == 'posix'):
+        sim = sim.replace(".physeng", "")
+    elif(os.name == 'nt'):
+        sim = sim.replace(".physeng", ".exe")
+
+    
+
+    print("Simulator: ", sim)
     print("Simulating gate:", gate.name)
 
     Results = []
@@ -227,7 +243,7 @@ def simulate_circuit(n_clicks, gate):
         
         result_name = "result_" + file_name
         #print(">>>>>", result_name)
-        result_path = implementation.call_simmaneal(file_path, result_name)
+        result_path = implementation.call_simmaneal(file_path, result_name, simulator=sim)
         #print("Result path: " + result_path)
         symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
         specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))

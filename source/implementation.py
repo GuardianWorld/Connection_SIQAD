@@ -47,17 +47,23 @@ def tabulate_to_dash(headers, rows):
     cleaned_data = [[cell[0] if isinstance(cell, list) else cell for cell in row] for row in rows]
     return tabulate(cleaned_data, headers=headers, tablefmt="html")
 
-def call_simmaneal(file, result_name):    
+def call_simmaneal(file, result_name, simulator=None):    
+    if simulator is None:
+        if(os.name == 'posix'):
+            sim = "./data/simulators/simanneal/simanneal"
+        else:
+            sim = "data\\simulators\\simanneal\\simanneal.exe"
+    else:
+        sim = simulator
+    
     if(os.name == 'posix'):
-        sim = "./data/simulators/simanneal/simanneal"
         result_path = "./data/xml/" + result_name
     else:
-        sim = "data\\simulators\\simanneal\\simanneal.exe"
         result_path = "data\\xml\\" + result_name
-        
+    
     command = sim + " " + file + " " + result_path
     print("Simulating: " + file)
-    #print(command)
+    print(command)
     sys.stdout.flush()
     subprocess.run(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return result_path

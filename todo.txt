@@ -1,0 +1,4 @@
+- Integrate with Fiction [Heatmap, Critical Temperatures, just like the paper we did for SBCCI]
+- add button for changing simulators
+- Add Truth Table Expected (Automatically).
+- Keep basic Truth Tables stored in program already.

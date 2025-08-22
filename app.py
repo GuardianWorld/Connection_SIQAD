@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 import dash_bootstrap_components as dbc
+from source.file_manager import get_simulators
 from source.plotting import plot_NML
 import os
 from pages import mainpage
@@ -16,6 +17,8 @@ app.title = "SIQAD Interconector"
 
 app.layout = html.Div([
     dcc.Store(id='files-store'),
+    dcc.Store(id='sim-store'),
+    dcc.Store(id='current-sim-store'),
     dcc.Store(id='wire-lenght-store', data=1),
     dcc.Store(id='selected-gates-store'),
     dcc.Store(id='truth-table-store'),
@@ -27,8 +30,15 @@ app.layout = html.Div([
     dcc.Store(id='placeholder-fig'),
     html.Div([
         html.Div([
-            html.H3("SiDB Interconector", style={'textAlign': 'center', 'color': '#ffffff'}),
+            dcc.Dropdown(
+                id='sim-dropdown',
+                multi=False, placeholder='simanneal',
+                style={'width': '100%', 'gap': '10px'}
+            ),
         ], style={'flex': '1'}),
+        html.Div([
+            html.H3("SiDB Interconector", style={'textAlign': 'center', 'color': '#ffffff', }),
+        ], style={'flex': '2'}),
         html.Div([
             dbc.Button("🔵 Main", id="btn-main", color="primary", className="me-2", size="sm", disabled=False),
             dbc.Button("🟠 Input selector", id="btn-input", color="secondary", className="me-2", size="sm", disabled=False),
@@ -103,6 +113,36 @@ def toggle_pages(main_clicks, input_clicks, info_clicks):
     }
 
     return styles.get(triggered_id, [{'display': 'block'}, {'display': 'none'}, {'display': 'none'}])
+
+@app.callback(
+    Output('sim-dropdown', 'options'),
+    Output('sim-store', 'data'),
+    Input('load-files', 'n_intervals'),
+)
+def update_sim_dropdown_options(_):
+    simulators = get_simulators()
+    sim_names = [os.path.basename(sim) for sim in simulators]
+    sim_names = [name.replace(".physeng", "") for name in sim_names]
+    return [{'label': name, 'value': name} for name in sim_names], simulators
+
+@app.callback(
+    Output('current-sim-store', 'data'),
+    Input('sim-dropdown', 'value'),
+    Input('sim-store', 'data')
+)
+
+def update_current_sim(selected_sim, sim_list):
+    if selected_sim is None:
+        current_sim = None
+        for sim in sim_list:
+            if "simanneal" in sim:
+                current_sim = sim
+                return current_sim
+    if selected_sim and sim_list:
+        for sim in sim_list:
+            if selected_sim in sim:
+                return sim
+    return None
 
 if __name__ == '__main__':
     app.run(debug=True)
