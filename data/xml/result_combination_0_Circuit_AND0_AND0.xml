@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sim_out>
+    <eng_info>
+        <engine>SimAnneal</engine>
+        <version>TBD</version>
+        <return_code>0</return_code>
+        <timestamp>Thu Aug 21 22:36:58 2025</timestamp>
+        <time_elapsed_s>0.155027</time_elapsed_s>
+    </eng_info>
+    <sim_params>
+        <T_e_inv_point>0.09995000064373016</T_e_inv_point>
+        <T_init>500</T_init>
+        <T_min>2</T_min>
+        <T_schedule>exponential</T_schedule>
+        <anneal_cycles>10000</anneal_cycles>
+        <debye_length>1.8</debye_length>
+        <eps_r>4.1</eps_r>
+        <hop_attempt_factor>5</hop_attempt_factor>
+        <muzm>-0.28</muzm>
+        <num_instances>-1</num_instances>
+        <phys_validity_check_cycles>10</phys_validity_check_cycles>
+        <reset_T_during_v_freeze_reset>false</reset_T_during_v_freeze_reset>
+        <result_queue_size>0.10000000149011612</result_queue_size>
+        <strategic_v_freeze_reset>false</strategic_v_freeze_reset>
+        <v_freeze_end_point>0.4000000059604645</v_freeze_end_point>
+        <v_freeze_init>-1</v_freeze_init>
+        <v_freeze_reset>-1</v_freeze_reset>
+        <v_freeze_threshold>4</v_freeze_threshold>
+    </sim_params>
+    <physloc>
+        <dbdot x="0.000000" y="-23.040000"/>
+        <dbdot x="0.000000" y="-13.110000"/>
+        <dbdot x="0.000000" y="2.250000"/>
+        <dbdot x="19.200000" y="-69.120000"/>
+        <dbdot x="0.000000" y="-43.830000"/>
+        <dbdot x="-11.520000" y="-61.440000"/>
+        <dbdot x="-19.200000" y="-69.120000"/>
+        <dbdot x="11.520000" y="-61.440000"/>
+        <dbdot x="0.000000" y="-36.150000"/>
+        <dbdot x="-26.880000" y="-76.800000"/>
+        <dbdot x="-49.920000" y="-122.880000"/>
+        <dbdot x="-49.920000" y="-112.950000"/>
+        <dbdot x="-49.920000" y="-97.590000"/>
+        <dbdot x="-30.720000" y="-168.960000"/>
+        <dbdot x="-49.920000" y="-143.670000"/>
+        <dbdot x="-61.440000" y="-161.280000"/>
+        <dbdot x="-69.120000" y="-168.960000"/>
+        <dbdot x="-38.400000" y="-161.280000"/>
+        <dbdot x="-49.920000" y="-135.990000"/>
+        <dbdot x="-34.560000" y="-84.480000"/>
+        <dbdot x="-42.240000" y="-92.160000"/>
+    </physloc>
+    <elec_dist>
+        <dist energy="0.965318" count="731" physically_valid="0" state_count="3">-0---0--00-0---0--0-0</dist>
+        <dist energy="0.969362" count="1000" physically_valid="1" state_count="3">-0----000-0-0-0----0-</dist>
+        <dist energy="0.964978" count="5269" physically_valid="1" state_count="3">-0---0--00-0-----00-0</dist>
+        <dist energy="0.973791" count="924" physically_valid="0" state_count="3">0---0-0---0-0-0--0-0-</dist>
+        <dist energy="0.974219" count="76" physically_valid="0" state_count="3">0---0-0---0-0-00---0-</dist>
+        <dist energy="1.255676" count="102" physically_valid="0" state_count="3">0---0-0----0---0--0-0</dist>
+        <dist energy="0.700891" count="1689" physically_valid="0" state_count="3">-0---0-000-0-----00-0</dist>
+        <dist energy="1.255255" count="898" physically_valid="1" state_count="3">0---0-0----0-----00-0</dist>
+        <dist energy="0.701196" count="311" physically_valid="0" state_count="3">-0---0-000-0---0--0-0</dist>
+        <dist energy="0.970203" count="1759" physically_valid="1" state_count="3">0---00---0-0-----00-0</dist>
+        <dist energy="1.551822" count="1000" physically_valid="0" state_count="3">0---0-0---0---0-----0</dist>
+        <dist energy="0.970536" count="241" physically_valid="0" state_count="3">0---00---0-0---0--0-0</dist>
+        <dist energy="1.258079" count="1000" physically_valid="1" state_count="3">-0---0--000---0-----0</dist>
+        <dist energy="1.245292" count="1000" physically_valid="1" state_count="3">0---0-0---0-0-0----0-</dist>
+    </elec_dist>
+</sim_out>
