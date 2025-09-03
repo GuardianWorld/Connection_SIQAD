@@ -10,6 +10,15 @@ from source.plotting import plot_NML, get_top_size, get_bottom_size, get_viewpor
 import os
 import time
 from dash import ClientsideFunction
+from pathlib import Path
+
+data_temp = Path("data") / "temp"
+data_xml = Path("data") / "xml"
+data_simulators = Path("data") / "simulators"
+data_sqd = Path("data") / "sqd"
+data_results = Path("data") / "results"
+simmanneal_default_path = data_simulators / "simanneal"
+
 
 layout = html.Div([
     dcc.Interval(id="log-updater", interval=500, n_intervals=0),  # every 0.5s
@@ -87,14 +96,6 @@ placeholder_fig.update_layout(
     title="Select a gate to view",
     height=700,
 )
-if(os.name == 'posix'):
-    simanneal = "data/simulators/simanneal"
-    complete = "data/simulators/complete"
-else:
-    simanneal = "data\\simulators\\simanneal"
-    complete = "data\\simulators\\complete"
-
-current_sim = simanneal
 
 #Callbacks
 @callback(
@@ -150,10 +151,8 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght):
 )
 
 def load_files(_, __):
-    if os.name == 'posix':
-        files = file_manager.get_files("./data/sqd")
-    else:
-        files = file_manager.get_files("data\\sqd")
+    file_path_string = str(data_sqd)
+    files = file_manager.get_files(file_path_string)
 
     return files  # This will be a list of file paths
 
@@ -203,17 +202,15 @@ def store_selected_gate(button1, button2, button3, selected_gate, stored):
 def simulate_circuit(n_clicks, gate, simulator_path, current_sim):
     if not gate:
         return [], []
-    if os.name == 'posix':  
-        file_manager.clear_folder("./data/temp")
-        file_manager.clear_folder("./data/xml")
-    else:
-        file_manager.clear_folder("data\\temp")
-        file_manager.clear_folder("data\\xml")
+    temp_string = str(data_temp)
+    xml_string = str(data_xml)
+    file_manager.clear_folder(temp_string)
+    file_manager.clear_folder(xml_string)
 
     gate = sqd_manipulator.Gate.from_dict(gate)
 
     if current_sim is None:
-        sim = "data/simulators/simanneal"
+        sim = simmanneal_default_path
     else:
         sim = current_sim
 
@@ -231,25 +228,31 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim):
     Results = []
     specific_gate_data = []
     gates = sqd_manipulator.combinators(gate)
+    print(f"Total simulations: {len(gates)}")
+    percentage_print = max(1, len(gates) // 8)
+    if len(gates) > 16:
+        print("Large number of simulations, this might take a while...")
+
+    print("Progress: [", end='', flush=True)
     for i in range(len(gates)):
         file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation")
         file_path = None
-        if(os.name == 'posix'):
-            file_path = "data/temp/" + file_name
-            file_manager.make_file(file_path, template)
-        else:
-            file_path = "data\\temp\\" + file_name
-            file_manager.make_file(file_path, template)
+
+        file_path = str(data_temp / file_name)
+        file_manager.make_file(file_path, template)
         
         result_name = "result_" + file_name
         #print(">>>>>", result_name)
-        result_path = implementation.call_simmaneal(file_path, result_name, simulator=sim)
+        result_path = implementation.call_simmaneal(file_path, result_name, simulator=sim, simmaneal_default_path=simmanneal_default_path)
         #print("Result path: " + result_path)
         symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
         specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))
 
         Results.append([symbol_table, i, energy])
+        if i % percentage_print == 0:
+            print(f"#", end='', flush=True)
     
+    print("]")    
     #print(implementation.make_table(["Result", gate.name, "Energy"], Results))
 
     columns = ["Result", "Expected", "File_ID", "Energy"]
@@ -268,7 +271,6 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim):
     }
     for row in Results
     ]
-    print(len(specific_gate_data), "specific gates data")
     return data, specific_gate_data
 
 

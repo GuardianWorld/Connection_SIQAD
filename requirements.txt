@@ -8,3 +8,4 @@ matplotlib
 dash_bootstrap_components
 dash_table
 spicy
+pathlib

@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from pathlib import Path
 
 
 #Gets all .SQD files in the directory and its subdirectories
@@ -177,14 +178,8 @@ def sqd_template_create(gate, prefix="", mode="save", mu=-0.28, eps_r=4.1, debye
     return name , header + pre_middle + middle + bottom
     
 def get_simulators():
-    directory = "./data/simulators"
-    if os.name == 'nt':
-        directory = directory.replace("/", "\\")
-
-    simulators = []
+    directory = Path("data") / "simulators"
     ending = ".physeng"
-    for root, dirs, file in os.walk(directory):
-        for f in file:
-            if f.endswith(ending):
-                simulators.append(os.path.join(root, f))
+
+    simulators = [str(p) for p in directory.rglob(f"*{ending}") if p.is_file()]
     return simulators
