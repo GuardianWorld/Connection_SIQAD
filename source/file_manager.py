@@ -1,6 +1,9 @@
 import os
 from datetime import datetime
 from pathlib import Path
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
+import re
 
 
 #Gets all .SQD files in the directory and its subdirectories
@@ -47,8 +50,25 @@ def get_files(directory, ending=".sqd"):
                 files.append(os.path.join(root, f))
     return files
 
-def sqd_template_create(gate, prefix="", mode="save", mu=-0.28, eps_r=4.1, debye_length=1.8, anneal_cycles=10000):
+
+
+def sqd_template_create(gate, prefix="", mode="save", mu=-0.28, eps_r=4.1, debye_length=1.8, anneal_cycles=10000, sim_params_template=None):
     date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if(sim_params_template is None):
+        print("No sim params template provided, please provide them on the folder [See Simanneal as an example]")
+        return "Error", ""
+    
+    #Edit template with the parameters like XML
+    #<anneal_cycles> something </anneal_cycles>
+
+    sim_params = sim_params_template
+    sim_params = re.sub(r"<muzm>.*?</muzm>", f"<muzm>{mu}</muzm>", sim_params)
+    sim_params = re.sub(r"<eps_r>.*?</eps_r>", f"<eps_r>{eps_r}</eps_r>", sim_params)
+    sim_params = re.sub(r"<debye_length>.*?</debye_length>", f"<debye_length>{debye_length}</debye_length>", sim_params)
+    sim_params = re.sub(r"<debye>.*?</debye>", f"<debye>{debye_length}</debye>", sim_params) #Some templates use debye instead of debye_length
+    sim_params = re.sub(r"<anneal_cycles>.*?</anneal_cycles>", f"<anneal_cycles>{anneal_cycles}</anneal_cycles>", sim_params)
+
     if(mode == "save"):
         header = f"""<?xml version="1.0" encoding="UTF-8"?>
     <siqad>
@@ -73,26 +93,7 @@ def sqd_template_create(gate, prefix="", mode="save", mu=-0.28, eps_r=4.1, debye
         <version>0.3.3</version>
         <date>{date}</date>
         </program>
-        <sim_params>
-            <T_e_inv_point>0.09995000064373016</T_e_inv_point>
-            <T_init>500</T_init>
-            <T_min>2</T_min>
-            <T_schedule>exponential</T_schedule>
-            <anneal_cycles>{anneal_cycles}</anneal_cycles>
-            <debye_length>{debye_length}</debye_length>
-            <eps_r>{eps_r}</eps_r>
-            <hop_attempt_factor>5</hop_attempt_factor>
-            <muzm>{mu}</muzm>
-            <num_instances>-1</num_instances>
-            <phys_validity_check_cycles>10</phys_validity_check_cycles>
-            <reset_T_during_v_freeze_reset>false</reset_T_during_v_freeze_reset>
-            <result_queue_size>0.10000000149011612</result_queue_size>
-            <strategic_v_freeze_reset>false</strategic_v_freeze_reset>
-            <v_freeze_end_point>0.4000000059604645</v_freeze_end_point>
-            <v_freeze_init>-1</v_freeze_init>
-            <v_freeze_reset>-1</v_freeze_reset>
-            <v_freeze_threshold>4</v_freeze_threshold>
-        </sim_params>
+        {sim_params}
         <gui>
             <zoom>0.0247393</zoom>
             <displayed_region x1="-163.707" y1="-62.6532" x2="260.718" y2="117.626"/>
@@ -183,3 +184,67 @@ def get_simulators():
 
     simulators = [str(p) for p in directory.rglob(f"*{ending}") if p.is_file()]
     return simulators
+
+
+def gen_simulator_sim_template(simulator_path=None):
+    if(simulator_path is None):
+        directory = Path("data") / "simulators" / "simanneal"
+    else:
+        directory = Path(simulator_path).parent
+    physeng_file = None
+    for file in directory.iterdir():
+        if file.suffix == ".physeng":
+            physeng_file = file
+            break
+    if physeng_file is None:
+        print("No .physeng file found in the simulator directory.")
+        return None
+
+    #Open Physeng with Elemental Trees and generate a template file.
+    tree = ET.parse(physeng_file)
+    root = tree.getroot()
+    sim_params = root.find('sim_params')
+    if sim_params is None:
+        print("No <sim_params> found in the .physeng file.")
+        return None
+    
+    simplified_params = ET.Element('sim_params')
+    for param in sim_params:
+        param_name = param.tag
+        val_elem = param.find('val')
+        val_text = val_elem.text if val_elem is not None else ''
+
+        new_elem = ET.SubElement(simplified_params, param_name)
+        new_elem.text = val_text    
+    
+    def pretty_xml(element):
+        rough_string = ET.tostring(element, 'utf-8')
+        reparsed = minidom.parseString(rough_string)
+        xml_str = reparsed.toprettyxml(indent="    ")
+        lines = xml_str.splitlines()
+        return "\n".join(line for line in lines if line.strip() and not line.startswith("<?xml"))
+
+    simplified_params = pretty_xml(simplified_params)
+    #print(simplified_params)
+    return simplified_params
+    
+
+
+def get_simulator_sim_template(simulator_path=None):
+    #print(simulator_path)
+    if simulator_path is None:
+        directory = Path("data") / "simulators" / "simanneal"
+    else:
+        directory = Path(simulator_path).parent
+
+    #print(directory)
+    file_name = "template.txt"
+    sim_template_path = Path(directory) / file_name
+    #print(sim_template_path)
+    if sim_template_path.is_file():
+        #open file and return contents
+        with open(sim_template_path, "r") as f:
+            return f.read()
+    else:
+        print("No template.txt file found in the simulator directory.")
+        return None

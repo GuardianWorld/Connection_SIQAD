@@ -234,10 +234,14 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim):
         print("Large number of simulations, this might take a while...")
 
     print("Progress: [", end='', flush=True)
+    sim_template = file_manager.gen_simulator_sim_template(simulator_path=sim)
+    if sim_template is None:
+        sim_template = file_manager.get_simulator_sim_template(sim)
+    if sim_template is None:
+        print("No sim template found, Aborting.")
+        return [], []
     for i in range(len(gates)):
-        file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation")
-        file_path = None
-
+        file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation", sim_params_template=sim_template)
         file_path = str(data_temp / file_name)
         file_manager.make_file(file_path, template)
         

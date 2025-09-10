@@ -61,6 +61,6 @@ def call_simmaneal(file, result_name, simulator=None, simmaneal_default_path=Non
     sys.stdout.flush()
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
     sys.stdout.flush()
-    subprocess.run(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    #print(result.stdout)
     return result_path
 
