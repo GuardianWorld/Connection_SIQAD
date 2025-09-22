@@ -138,18 +138,22 @@ def main_operator(file):
     
 def circuit_to_gate(circuit):
     db_dots = []
-    for gate in circuit.gates:
-        for dot in gate.db_dots:
-            db_dots.append(dot)
-    
-    pivot_dot = circuit.pivot_dot
-    input_perturbers = circuit.input_perterbers
-    output_dot = circuit.gates[0].output_dot
-    name = "Circuit"
-    for gate in circuit.gates:
-        name += f"_{gate.name}"
-    new_gate = Gate(db_dots, pivot_dot, input_perturbers,output_dot, name)
-    return new_gate
+    try:
+        for gate in circuit.gates:
+            for dot in gate.db_dots:
+                db_dots.append(dot)
+        
+        pivot_dot = circuit.pivot_dot
+        input_perturbers = circuit.input_perterbers
+        output_dot = circuit.gates[0].output_dot
+        name = "Circuit"
+        for gate in circuit.gates:
+            name += f"_{gate.name}"
+        new_gate = Gate(db_dots, pivot_dot, input_perturbers,output_dot, name)
+        return new_gate
+    except AttributeError as a:
+        return circuit
+
 
 
 # Tester

@@ -27,6 +27,15 @@ layout = html.Div([
             id='gate-dropdown',
             multi=False, placeholder='Select a gate',
             style={'width': '100%', 'marginRight': '10px', 'marginBottom': '10px'}),
+        dcc.Input(
+            id='wire-length-input',
+            type='number',
+            placeholder='Wire Length (default 1)',
+            value=1,
+            min=1,
+            step=1,
+            style={'width': '20%', 'marginRight': '10px', 'marginBottom': '10px', 'height': '35px'}
+        ),
         dbc.Button("Connect", id="btn-connect", color="secondary", disabled=False, style={'width': '15%', 'marginRight': '10px', 'height': '35px'}),
         dbc.Button("Undo", id="btn-undo", color="secondary", disabled=False, style={'width': '15%', 'marginRight': '10px', 'height': '35px'}),
         dbc.Button("Clear", id="btn-clear", color="secondary", disabled=False, style={'width': '15%', 'marginRight': '10px', 'height': '35px'}),
@@ -98,6 +107,16 @@ placeholder_fig.update_layout(
 )
 
 #Callbacks
+
+@callback(
+    Output('wire-lenght-store', 'data'),
+    Input('wire-length-input', 'value')        
+)
+def update_wire_length(value):
+    if value is None or value < 1:
+        return 1
+    return value
+
 @callback(
     Output('gate-view-plot', 'figure'),
     Output('gate-storage', 'data'),
@@ -106,7 +125,7 @@ placeholder_fig.update_layout(
     Input('btn-clear', 'n_clicks'),
     Input('selected-gates-store', 'data'),
     State('files-store', 'data'),
-    State('wire-lenght-store', 'data')
+    Input('wire-lenght-store', 'data')
 )
 def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght):
     if not selected_gates or not files_data:
@@ -115,8 +134,8 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght):
     
     #Print JUST the names
     gate_names = [os.path.basename(gate) for gate in selected_gates]
-    print("Selected gates:", gate_names)
 
+    """"
     if len(selected_gates) == 1:
         file1 = selected_gates[0]
         gate = sqd_manipulator.main_operator(file1)
@@ -136,11 +155,19 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght):
         gate3 = sqd_manipulator.main_operator(file3)
         circuit = gate_connector.connect_3_gates(gate1, gate2, gate3, wires=wire_lenght)
         gate = sqd_manipulator.circuit_to_gate(circuit)
-
-    if len(selected_gates) <= 3:
-        viewport = get_viewport(gate)
-        fig = plot_NML(gate, viewport)
-        print(viewport_size(viewport))
+    """
+    if len(selected_gates) == 1:
+        file1 = selected_gates[0]
+        gate = sqd_manipulator.main_operator(file1)
+    else:
+        files = selected_gates
+        #circuit = gate_connector.connect_n_gates(files, wires=wire_lenght)
+        circuit = gate_connector.connect_n_gates(files, wire_lenght)
+        gate = sqd_manipulator.circuit_to_gate(circuit)
+        
+    viewport = get_viewport(gate)
+    fig = plot_NML(gate, viewport)
+    print(f"Selected gates: {gate_names}, Wire length: {wire_lenght}, {viewport_size(viewport)}")
     
     return fig, gate.to_dict()        
 
