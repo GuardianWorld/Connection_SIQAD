@@ -162,7 +162,7 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght):
     else:
         files = selected_gates
         #circuit = gate_connector.connect_n_gates(files, wires=wire_lenght)
-        circuit = gate_connector.connect_n_gates(files, wire_lenght)
+        circuit = gate_connector.connect_n_gates_fifo(files, wire_lenght)
         gate = sqd_manipulator.circuit_to_gate(circuit)
         
     viewport = get_viewport(gate)

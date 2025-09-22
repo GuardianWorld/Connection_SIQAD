@@ -146,6 +146,18 @@ def estimate_max_depth(gates, inputs_per_gate=2):
     max_depth = math.ceil(math.log(N, inputs_per_gate))
     return max_depth
 
+def get_gate_boundaries(gate):
+    min_n = min(dot.latcoord['n'] for dot in gate.db_dots)
+    max_n = max(dot.latcoord['n'] for dot in gate.db_dots)
+    return min_n, max_n
+
+def boxes_overlap(box1, box2, padding=3):
+    min_n1, max_n1 = box1
+    min_n2, max_n2 = box2
+    # Check for overlap with padding
+    return not (max_n1 < min_n2 or max_n2 < min_n1)
+
+
 def connect_n_gates_fifo(files, wires=2, min_horizontal_distance=7):
     gates = [sqd_manipulator.main_operator(file) for file in files]
     max_depth = estimate_max_depth(gates, inputs_per_gate=2)
@@ -154,11 +166,11 @@ def connect_n_gates_fifo(files, wires=2, min_horizontal_distance=7):
     if len(gates) == 1:
         return gates[0]
     #Base Case: Two gates
-    elif len(gates) == 2:
-        return connect_2_gates(gates[0], gates[1], wires=wires)
+    #elif len(gates) == 2:
+        #return connect_2_gates(gates[0], gates[1], wires=wires)
     #Base Case: Three gates
-    elif len(gates) == 3:
-        return connect_3_gates(gates[0], gates[1], gates[2], wires=wires)
+    #elif len(gates) == 3:
+        #return connect_3_gates(gates[0], gates[1], gates[2], wires=wires)
     
     #Start with the first gate.
     circuit = gates[0]
@@ -174,7 +186,7 @@ def connect_n_gates_fifo(files, wires=2, min_horizontal_distance=7):
         current_perturber, parent_pivot = perturber_queue.pop(0)
 
         #Add Wire size to the depth, and, lower it.
-        current_wire = wires + (max_depth - depth + 1)
+        current_wire = wires
 
         n_shift = -2 if current_perturber.latcoord['n'] < parent_pivot.latcoord['n'] else 2
         m_shift = -1
@@ -184,31 +196,25 @@ def connect_n_gates_fifo(files, wires=2, min_horizontal_distance=7):
         #collission-aware placement
         valid_position = False
         trial_wire = current_wire
-        temp_gate = next_gate
         while not valid_position:
             n = current_perturber.latcoord['n'] + n_shift + trial_wire
             m = current_perturber.latcoord['m'] + m_shift + trial_wire
 
-            sqd_manipulator.shift_gate_dots(temp_gate, n, m)
-            
-            #check for horizontal disturbances/collisions
+            sqd_manipulator.shift_gate_dots(next_gate, n, m)
+            new_box = get_gate_boundaries(next_gate)
+
             too_close = False
-            for dot_new in temp_gate.db_dots:
-                for existing_gate in circuit.gates if not isinstance(circuit, Gate) else [circuit]:
-                    for dot_existing in existing_gate.db_dots:
-                        print(dot_new.latcoord, dot_existing.latcoord)
-                        if abs(dot_new.latcoord['n'] - dot_existing.latcoord['n']) < min_horizontal_distance:
-                            too_close = True
-                            break
-                    if too_close:
-                        break
-                if too_close:
+            for existing_gate in circuit.gates if not isinstance(circuit, Gate) else [circuit]:
+                existing_box = get_gate_boundaries(existing_gate)
+                if boxes_overlap(new_box, existing_box, padding=min_horizontal_distance):
+                    too_close = True
                     break
 
             if too_close:
-                trial_wire += 1
+                trial_wire += 1  # push further away
             else:
                 valid_position = True
+
 
         """
         #add the amount of wire length to the shift.
