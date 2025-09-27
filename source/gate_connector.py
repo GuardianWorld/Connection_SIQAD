@@ -1,3 +1,4 @@
+from collections import deque
 from source.classes import DBDot, Gate, Circuit
 from source import sqd_manipulator
 
@@ -141,11 +142,6 @@ def connect_n_gates_balanced(files, base_wires=2):
 
 import math
 
-def estimate_max_depth(gates, inputs_per_gate=2):
-    N = len(gates)
-    max_depth = math.ceil(math.log(N, inputs_per_gate))
-    return max_depth
-
 def get_gate_boundaries(gate):
     min_n = min(dot.latcoord['n'] for dot in gate.db_dots)
     max_n = max(dot.latcoord['n'] for dot in gate.db_dots)
@@ -157,106 +153,189 @@ def boxes_overlap(box1, box2, padding=3):
     # Check for overlap with padding
     return not (max_n1 < min_n2 or max_n2 < min_n1)
 
+def calculate_max_depth(gates):
+    depth = 1
+    perturbers_remaining = 0
+    perturber_aux = 0
+    perturber_per_depth = []
+    #first step: calculate the max depth with a virtual connection
+    perturbers_remaining = len(gates[0].input_perturbers)
+    perturber_per_depth.append(perturbers_remaining)
+    gates_per_depth = []
+    #On the first depth, only one gate can be placed.
+    gates_per_depth.append(1)
+    gates_per_depth_aux = 0
+
+    for gate in gates[1:]:
+        #On the first gate, grab its perturbers
+        #On the next gates, subtract one perturber (the one being used to connect) and add the new perturbers on an aux list (next layer).
+        # If the perturbers remaining is 0, increase depth and set the perturbers remaining to the aux list length.
+        perturbers_remaining -= 1
+        perturber_aux += len(gate.input_perturbers)
+        gates_per_depth_aux += 1
+        if perturbers_remaining == 0:
+            depth += 1
+            perturbers_remaining = perturber_aux
+            perturber_per_depth.append(perturber_aux)
+            perturber_aux = 0
+            gates_per_depth.append(gates_per_depth_aux)
+            gates_per_depth_aux = 0
+
+    if perturber_aux > 0:
+        perturber_per_depth.append(perturber_aux)
+        gates_per_depth.append(gates_per_depth_aux)
+    return depth, perturber_per_depth, gates_per_depth
+
 
 def connect_n_gates_fifo(files, wires=2, min_horizontal_distance=7):
     gates = [sqd_manipulator.main_operator(file) for file in files]
-    max_depth = estimate_max_depth(gates, inputs_per_gate=2)
 
-    #Base Case: Only one gate
-    if len(gates) == 1:
-        return gates[0]
-    #Base Case: Two gates
-    #elif len(gates) == 2:
-        #return connect_2_gates(gates[0], gates[1], wires=wires)
-    #Base Case: Three gates
-    #elif len(gates) == 3:
-        #return connect_3_gates(gates[0], gates[1], gates[2], wires=wires)
-    
-    #Start with the first gate.
+    #Precompute max depth, gates per depth and perturbers per depth
+    max_depth, perturbers_per_depth, gates_per_depth = calculate_max_depth(gates)
+
+    # Precompute depth of each gate
+    depth_map = {}
+    queue = [(0, gates[0])]  # (depth, gate)
+    idx = 1
+    while queue:
+        depth, gate = queue.pop(0)
+        depth_map[gate] = depth
+        for _ in gate.input_perturbers:
+            if idx < len(gates):
+                queue.append((depth + 1, gates[idx]))
+                idx += 1
+
+    max_depth = max(depth_map.values())
+    constant = 2
+    # Start with the root gate
     circuit = gates[0]
-    
-    #FIFO queue the available input perturbers
     perturber_queue = [(p, circuit.pivot_dot) for p in circuit.input_perturbers]
-    max_inputs_in_layer = 2
-    inputs_in_layer = 2
-    depth = 1
+
+    #Save the name of the gate, and the middle of its boundaries for name placement above its pivot
+    gate_pos_name = []
+    gate_pos_name.append((gates[0].name, gates[0].pivot_dot))
 
     for next_gate in gates[1:]:
-        #Take the first available input from the queue
         current_perturber, parent_pivot = perturber_queue.pop(0)
 
-        #Add Wire size to the depth, and, lower it.
-        current_wire = wires
+        # Longer wires for higher layers
+        gate_depth = depth_map[next_gate]
+        current_wire = max(1, wires * (max_depth - gate_depth + 1))
+        if(gate_depth == max_depth):
+            current_wire = 1
 
         n_shift = -2 if current_perturber.latcoord['n'] < parent_pivot.latcoord['n'] else 2
         m_shift = -1
         n = current_perturber.latcoord['n'] + n_shift
         m = current_perturber.latcoord['m'] + m_shift
 
-        #collission-aware placement
-        valid_position = False
-        trial_wire = current_wire
-        while not valid_position:
-            n = current_perturber.latcoord['n'] + n_shift + trial_wire
-            m = current_perturber.latcoord['m'] + m_shift + trial_wire
+        for _ in range(current_wire):
+            n += n_shift * 2
+            m += m_shift * 2
 
-            sqd_manipulator.shift_gate_dots(next_gate, n, m)
-            new_box = get_gate_boundaries(next_gate)
-
-            too_close = False
-            for existing_gate in circuit.gates if not isinstance(circuit, Gate) else [circuit]:
-                existing_box = get_gate_boundaries(existing_gate)
-                if boxes_overlap(new_box, existing_box, padding=min_horizontal_distance):
-                    too_close = True
-                    break
-
-            if too_close:
-                trial_wire += 1  # push further away
-            else:
-                valid_position = True
-
-
-        """
-        #add the amount of wire length to the shift.
-        if(current_wire > 0):
-            for i in range(current_wire):
-                n += n_shift * 2
-                m += m_shift * 2
-
-        """
-        #shift the gate
         sqd_manipulator.shift_gate_dots(next_gate, n, m)
 
-
-        #add the wire dots.
+        # Add the wire dots
         m_pos = current_perturber.latcoord['m']
         n_pos = current_perturber.latcoord['n']
-        for i in range(current_wire):
-            for j in range(2):
+        for _ in range(current_wire):
+            for _ in range(2):
                 m_pos += m_shift
                 n_pos += n_shift
                 dbdot = DBDot(2, {'n': n_pos, 'm': m_pos, 'l': 0}, None, '0x000000')
                 dbdot.recalculate_physloc()
                 next_gate.db_dots.append(dbdot)
-        
-        #merge the gates into a circuit
+
+        # Merge gates into circuit
         circuit = Circuit(
-            [circuit, next_gate] if isinstance(circuit, Gate) else circuit.gates + [next_gate], 
+            [circuit, next_gate] if isinstance(circuit, Gate) else circuit.gates + [next_gate],
             input_perterbers=[p for p, _ in perturber_queue] + sqd_manipulator.get_input_perturbers(next_gate.db_dots),
-            pivot_dot = circuit.pivot_dot
+            pivot_dot=circuit.pivot_dot
         )
 
-        #update the perturber queue
+        # Save gate name and position for labeling
+        gate_pos_name.append((next_gate.name, next_gate.pivot_dot))
+
+        # Add new perturbers to the queue
         for p in sqd_manipulator.get_input_perturbers(next_gate.db_dots):
             perturber_queue.append((p, next_gate.pivot_dot))
-        
-        #update the inputs in the current layer
-        inputs_in_layer -= 1
-        print("Inputs left in layer:", inputs_in_layer)
-        if inputs_in_layer == 0:
-            print("Increasing depth to:", depth + 1)
-            depth += 1
-            inputs_in_layer = max_inputs_in_layer * 2
-            max_inputs_in_layer *= 2
+
+    #calculate all DBS in the circuit
+
+
+    return circuit, gate_pos_name
+
+def connect_n_gates_bottom_up(files, wires=2, min_horizontal_distance=7):
+    gates = [sqd_manipulator.main_operator(f) for f in files]
+
+    # Step 1: Calculate max depth, perturbers, and gates per depth
+    max_depth, perturbers_per_depth, gates_per_depth = calculate_max_depth(gates)
+    print("Max Depth:", max_depth)
+    print("Gates per depth:", gates_per_depth)
+    print("Perturbers per depth:", perturbers_per_depth)
+
+    # Step 2: Assign gates to layers
+    layers = []
+    idx = 0
+    for num_gates in gates_per_depth:
+        layer = gates[idx:idx + num_gates]
+        layers.append(layer)
+        idx += num_gates
+
+    # Step 3: Horizontal placement of leaves
+    positions = {}  # gate -> (n, m)
+    current_x = 0
+    leaf_layer = layers[-1]
+    for gate in leaf_layer:
+        positions[gate] = (current_x, max_depth)  # x = current_x, y = depth
+        current_x += min_horizontal_distance
+
+    # Step 4: Bottom-up placement for parents
+    for depth in reversed(range(max_depth)):
+        layer = layers[depth]
+        for i, gate in enumerate(layer):
+            # Children are gates in the next layer that this gate connects to
+            children = layers[depth + 1] if depth + 1 < len(layers) else []
+            # Find which children this parent connects to
+            gate_children = [c for c in children if gate in c.input_perturbers]
+            if gate_children:
+                # Parent n = midpoint of its children
+                min_x = min(positions[c][0] for c in gate_children)
+                max_x = max(positions[c][0] for c in gate_children)
+                parent_x = (min_x + max_x) / 2
+            else:
+                parent_x = 0
+            positions[gate] = (parent_x, depth)
+
+    # Step 5: Apply positions and create wires
+    for gate in gates:
+        n_pos, m_pos = positions[gate]
+        n_shift = n_pos - gate.pivot_dot.latcoord['n']
+        m_shift = m_pos - gate.pivot_dot.latcoord['m']
+        sqd_manipulator.shift_gate_dots(gate, n_shift, m_shift)
+
+        # Connect wires from parent(s) to this gate
+        for p_gate in gates:
+            if gate in p_gate.input_perturbers:
+                parent_n, parent_m = positions[p_gate]
+                # Simple straight-line wires
+                n_step = 1 if n_pos > parent_n else -1
+                m_step = 1 if m_pos > parent_m else -1
+                n_wire, m_wire = parent_n, parent_m
+                while n_wire != n_pos or m_wire != m_pos:
+                    if n_wire != n_pos:
+                        n_wire += n_step
+                    if m_wire != m_pos:
+                        m_wire += m_step
+                    dbdot = DBDot(2, {'n': n_wire, 'm': m_wire, 'l': 0}, None, '0x000000')
+                    dbdot.recalculate_physloc()
+                    gate.db_dots.append(dbdot)
+
+    # Step 6: Merge all gates into a circuit
+    circuit = Circuit(
+        gates,
+        input_perterbers=[p for g in gates for p in g.input_perturbers],
+        pivot_dot=gates[0].pivot_dot
+    )
 
     return circuit

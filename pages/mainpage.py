@@ -68,15 +68,6 @@ layout = html.Div([
     html.Div([
         html.Div([
             dcc.Graph(id='specific-gate', style={'height': '700px'}),
-            dcc.Slider(
-                id='gate-slider',
-                min=0,
-                max=0,
-                step=1,
-                value=0,
-                tooltip={"placement": "bottom", "always_visible": False},
-                className='ppm-slider'
-            ),
         ], style={'width': '50%', 'paddingLeft': '10px', 'display': 'flex', 'flexDirection': 'column'}),
         html.Div([
             dash_table.DataTable(
@@ -87,6 +78,7 @@ layout = html.Div([
                     {"name": "File_ID", "id": "file_id"},
                     {"name": "Energy", "id": "energy"},
                 ],
+                page_size=20,
                 style_table={'overflowX': 'auto'},
                 style_header={'backgroundColor': '#1e1e1e', 'color': 'white'},
                 style_cell={'backgroundColor': '#111111', 'color': 'white'},
@@ -97,6 +89,15 @@ layout = html.Div([
             'justifyContent': 'flex-end'
         }),
     ], style={'display': 'flex', 'flexDirection': 'column'}, className='flex-row'),
+        dcc.Slider(
+        id='gate-slider',
+        min=0,
+        max=0,
+        step=1,
+        value=0,
+        tooltip={"placement": "bottom", "always_visible": False},
+        className='ppm-slider'
+    ),
 ])
     
 
@@ -125,16 +126,17 @@ def update_wire_length(value):
     Input('btn-clear', 'n_clicks'),
     Input('selected-gates-store', 'data'),
     State('files-store', 'data'),
-    Input('wire-lenght-store', 'data')
+    Input('wire-lenght-store', 'data'),
+    Input('algorithm-store', 'data')
 )
-def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght):
+def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght, algorithm):
     if not selected_gates or not files_data:
         return placeholder_fig, None
     fig = placeholder_fig
     
     #Print JUST the names
     gate_names = [os.path.basename(gate) for gate in selected_gates]
-
+    gate_pos_name = None
     """"
     if len(selected_gates) == 1:
         file1 = selected_gates[0]
@@ -159,14 +161,22 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght):
     if len(selected_gates) == 1:
         file1 = selected_gates[0]
         gate = sqd_manipulator.main_operator(file1)
+        gate_pos_name = [(gate.name, gate.pivot_dot)]
     else:
         files = selected_gates
         #circuit = gate_connector.connect_n_gates(files, wires=wire_lenght)
-        circuit = gate_connector.connect_n_gates_fifo(files, wire_lenght)
+        if(algorithm == "FIFO"):
+            circuit, gate_pos_name = gate_connector.connect_n_gates_fifo(files, wires=wire_lenght)
+        elif(algorithm == "CORNER"):
+            circuit = gate_connector.connect_n_gates(files, wire_lenght)
+        elif(algorithm == "BALANCED"):
+            circuit = gate_connector.connect_n_gates_balanced(files, wire_lenght)
+        elif(algorithm == "BOTTOMUP"):
+            circuit = gate_connector.connect_n_gates_bottom_up(files, wire_lenght)
         gate = sqd_manipulator.circuit_to_gate(circuit)
         
     viewport = get_viewport(gate)
-    fig = plot_NML(gate, viewport)
+    fig = plot_NML(gate, viewport, len(selected_gates), gate_pos_name)
     print(f"Selected gates: {gate_names}, Wire length: {wire_lenght}, {viewport_size(viewport)}")
     
     return fig, gate.to_dict()        
@@ -228,7 +238,10 @@ def store_selected_gate(button1, button2, button3, selected_gate, stored):
 )
 def simulate_circuit(n_clicks, gate, simulator_path, current_sim):
     if not gate:
-        return [], []
+        #Create a padded empty table
+        blank_row = {"result": "", "expected": "", "file_id": "", "energy": ""}
+        data = [blank_row.copy() for _ in range(20)]
+        return data, []
     temp_string = str(data_temp)
     xml_string = str(data_xml)
     file_manager.clear_folder(temp_string)
@@ -302,6 +315,18 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim):
     }
     for row in Results
     ]
+
+    def pad_table_data(data, page_size=20):
+        # If there are fewer rows than page size, fill with blanks
+        rows_to_add = page_size - len(data) % page_size
+        if rows_to_add > 0:
+            blank_row = {col: "" for col in data[0].keys()} if data else {"result": "", "expected": "", "file_id": "", "energy": ""}
+            data += [blank_row.copy() for _ in range(rows_to_add)]
+        return data
+    
+    data = pad_table_data(data, page_size=20)
+
+    
     return data, specific_gate_data
 
 

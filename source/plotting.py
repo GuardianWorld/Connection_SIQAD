@@ -6,7 +6,8 @@ import io
 import base64
 
 
-def plot_NML(gate, viewport=None):
+def plot_NML(gate, viewport=None, num_gates=0, gate_pos_name=None):
+    #print(gate)
     fig = go.Figure()
 
     dot_size = 4
@@ -32,7 +33,7 @@ def plot_NML(gate, viewport=None):
     bottom = viewport.get("bottom", -10)
 
     
-
+    
     for m in range(bottom, top + 1):  # M axis (rows)
         for n in range( left, right + 1):  # N axis (columns)
 
@@ -51,26 +52,46 @@ def plot_NML(gate, viewport=None):
                 hover_texts.append(f"N={n}, M={m}, L={l}")
 
     # Add actual visible lattice points
-    fig.add_trace(go.Scattergl(
-        x=x_coords,
-        y=y_coords,
-        mode='markers',
-        marker=dict(size=dot_size, color='gray', symbol='circle'),
-        text=hover_texts,
-        opacity = 0.6,
-        hoverinfo='skip',
-        showlegend=False
-    ))
+    if(num_gates < 8):
+        fig.add_trace(go.Scattergl(
+            x=x_coords,
+            y=y_coords,
+            mode='markers',
+            marker=dict(size=dot_size, color='gray', symbol='circle'),
+            text=hover_texts,
+            opacity = 0.6,
+            hoverinfo='skip',
+            showlegend=False
+        ))
 
-    # Add invisible markers on "empty" rows to force spacing
-    fig.add_trace(go.Scattergl(
-        x=ghost_x,
-        y=ghost_y,
-        mode='markers',
-        marker=dict(size=dot_size, color='rgba(0,0,0,0)'),  # fully transparent
-        hoverinfo='skip',
-        showlegend=False
-    ))
+        # Add invisible markers on "empty" rows to force spacing
+        fig.add_trace(go.Scattergl(
+            x=ghost_x,
+            y=ghost_y,
+            mode='markers',
+            marker=dict(size=dot_size, color='rgba(0,0,0,0)'),  # fully transparent
+            hoverinfo='skip',
+            showlegend=False
+        ))
+
+    # Add Names of gates above their pivot points
+    if gate_pos_name:
+        for name, pivot in gate_pos_name:
+            n = pivot.latcoord['n']
+            m = pivot.latcoord['m']
+            l = pivot.latcoord['l']
+            x = n * 0.6
+            y = m * 3 + l
+
+            fig.add_annotation(
+                x=x,
+                y=-y + 3,  # position above the pivot
+                text=name,
+                showarrow=False,
+                font=dict(size=20, color='black'),
+                align='center'
+            )
+
 
     # Layout styling
     fig.update_layout(
@@ -124,7 +145,7 @@ def plot_NML(gate, viewport=None):
 
     return fig
 
-def plot_XY(info):
+def plot_XY(info, gate_pos_name=None):
     fig = go.Figure()
 
     x_coords = []
@@ -155,6 +176,26 @@ def plot_XY(info):
     ))
 
     fig.update_yaxes(autorange='reversed')
+
+        # Add Names of gates above their pivot points
+    if gate_pos_name:
+        for name, pivot in gate_pos_name:
+            n = pivot.latcoord['n']
+            m = pivot.latcoord['m']
+            l = pivot.latcoord['l']
+            x = n * 0.6
+            y = m * 3 + l
+
+            fig.add_annotation(
+                x=x,
+                y=-y + 3,  # position above the pivot
+                text=name,
+                showarrow=False,
+                font=dict(size=20, color='black'),
+                align='center'
+            )
+
+     # Layout styling
 
     fig.update_layout(
         margin=dict(l=10, r=10, t=10, b=10),

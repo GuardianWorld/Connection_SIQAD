@@ -25,6 +25,7 @@ app.layout = html.Div([
     dcc.Store(id='simulated-states-store'),
     dcc.Store(id='gate-storage'),
     dcc.Store(id='log-trigger'),
+    dcc.Store(id='algorithm-store', data='FIFO'),
     dcc.Store(id='specific-gate-data', data=[]),
     dcc.Interval(id='load-files', interval=1*1000, n_intervals=0, max_intervals=1),
     dcc.Store(id='placeholder-fig'),
@@ -36,6 +37,19 @@ app.layout = html.Div([
                 style={'width': '100%', 'gap': '10px'}
             ),
         ], style={'flex': '1'}),
+        html.Div([
+            dcc.Dropdown(
+                id='algorithm-dropdown',
+                options=[
+                    {'label': 'First in First out', 'value': 'FIFO'},
+                    {'label': 'Corner Connection', 'value': 'CORNER'},
+                    {'label': 'bottom-up', 'value': 'BOTTOMUP'},
+                    {'label': '"Balanced"', 'value': 'BALANCED'},
+                ],
+                multi=False, value='FIFO',
+                style={'width': '100%', 'gap': '10px'}
+            ),
+        ], style={'flex': '1', 'marginLeft': '10px'}),
         html.Div([
             html.H3("SiDB Interconector", style={'textAlign': 'center', 'color': '#ffffff', }),
         ], style={'flex': '2'}),
@@ -143,6 +157,16 @@ def update_current_sim(selected_sim, sim_list):
             if selected_sim in sim:
                 return sim
     return None
+
+@app.callback(
+    Output('algorithm-store', 'data'),
+    Input('algorithm-dropdown', 'value'),
+)
+def update_algorithm_store(selected_algorithm):
+    if selected_algorithm is None:
+        return 'FIFO'
+    return selected_algorithm
+
 
 if __name__ == '__main__':
     app.run(debug=True)
