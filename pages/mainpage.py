@@ -9,6 +9,7 @@ from source import file_manager, sqd_manipulator, gate_connector, StreamCapture,
 from source.plotting import plot_NML, get_top_size, get_bottom_size, get_viewport, viewport_size, plot_XY
 import os
 import time
+from pages import configpage
 from dash import ClientsideFunction
 from pathlib import Path
 
@@ -34,8 +35,15 @@ layout = html.Div([
             value=1,
             min=1,
             step=1,
-            style={'width': '20%', 'marginRight': '10px', 'marginBottom': '10px', 'height': '35px'}
+            style={'width': '10%', 'marginRight': '10px', 'marginBottom': '10px', 'height': '35px'}
         ),
+        html.Div([
+            html.Button("⚙", 
+            id="toggle-config", 
+            n_clicks=0, 
+            style={'width': '100%', 'gap': '10px', 'height': '35px'}
+        ),
+        ], style={'flex': '0.1', 'marginRight': '10px'}),
         dbc.Button("Connect", id="btn-connect", color="secondary", disabled=False, style={'width': '15%', 'marginRight': '10px', 'height': '35px'}),
         dbc.Button("Undo", id="btn-undo", color="secondary", disabled=False, style={'width': '15%', 'marginRight': '10px', 'height': '35px'}),
         dbc.Button("Clear", id="btn-clear", color="secondary", disabled=False, style={'width': '15%', 'marginRight': '10px', 'height': '35px'}),
@@ -47,6 +55,7 @@ layout = html.Div([
         ], style={'width': '50%', 'paddingLeft': '10px'}),
 
         html.Div([
+            html.Div(configpage.layout, id='config-page', style={'display': 'none'}),
             html.Pre(id='backend-log', style={
                 'height': '700px',
                 'overflowY': 'scroll',
@@ -56,7 +65,7 @@ layout = html.Div([
                 'border': '1px solid #333',
                 'fontFamily': 'monospace',
                 'whiteSpace': 'pre-wrap'
-            })
+            }),
         ], style={
             'width': '50%',
             'paddingLeft': '10px',
@@ -109,6 +118,22 @@ placeholder_fig.update_layout(
 
 #Callbacks
 
+@callback(
+    Output('config-page', 'style'),
+    Output('backend-log', 'style'),
+    Input('toggle-config', 'n_clicks'),
+    State('config-page', 'style'),
+    Input('apply-config', 'n_clicks'),
+    Input('close-config', 'n_clicks'),
+    prevent_initial_call=True
+)
+def toggle_config(n_clicks, current_style, apply_click, close_click):
+    if n_clicks is None:
+        return current_style or {'display': 'none'}
+    if current_style is None or current_style.get('display') == 'none':
+        return {'display': 'block', 'marginTop': '20px'}, {'height': '400px', 'overflowY': 'scroll', 'backgroundColor': '#111', 'color': '#0f0', 'paddingleft': '10px', 'border': '1px solid #333', 'fontFamily': 'monospace', 'whiteSpace': 'pre-wrap', 'display': 'none'}
+    else:
+        return {'display': 'none'}, {'height': '700px', 'overflowY': 'scroll', 'backgroundColor': '#111', 'color': '#0f0', 'paddingleft': '10px', 'border': '1px solid #333', 'fontFamily': 'monospace', 'whiteSpace': 'pre-wrap', 'display': 'block'}
 @callback(
     Output('wire-lenght-store', 'data'),
     Input('wire-length-input', 'value')        
@@ -235,8 +260,9 @@ def store_selected_gate(button1, button2, button3, selected_gate, stored):
     State('gate-storage', 'data'),
     State('sim-store', 'data'),
     State('current-sim-store', 'data'),
+    State('config-sim-store', 'data')
 )
-def simulate_circuit(n_clicks, gate, simulator_path, current_sim):
+def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
     if not gate:
         #Create a padded empty table
         blank_row = {"result": "", "expected": "", "file_id": "", "energy": ""}
@@ -281,13 +307,13 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim):
         print("No sim template found, Aborting.")
         return [], []
     for i in range(len(gates)):
-        file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation", sim_params_template=sim_template)
+        file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation", sim_params_template=sim_template, parameters=config_sim)
         file_path = str(data_temp / file_name)
         file_manager.make_file(file_path, template)
         
         result_name = "result_" + file_name
         #print(">>>>>", result_name)
-        result_path = implementation.call_simmaneal(file_path, result_name, simulator=sim, simmaneal_default_path=simmanneal_default_path)
+        result_path = implementation.call_sim(file_path, result_name, simulator=sim, simmaneal_default_path=simmanneal_default_path)
         #print("Result path: " + result_path)
         symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
         specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))

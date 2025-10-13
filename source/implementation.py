@@ -48,7 +48,7 @@ def tabulate_to_dash(headers, rows):
     cleaned_data = [[cell[0] if isinstance(cell, list) else cell for cell in row] for row in rows]
     return tabulate(cleaned_data, headers=headers, tablefmt="html")
 
-def call_simmaneal(file, result_name, simulator=None, simmaneal_default_path=None):    
+def call_sim(file, result_name, simulator=None, simmaneal_default_path=None):    
     if simulator is None:
         sim = simmaneal_default_path
     else:

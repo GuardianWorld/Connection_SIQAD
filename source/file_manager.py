@@ -52,22 +52,31 @@ def get_files(directory, ending=".sqd"):
 
 
 
-def sqd_template_create(gate, prefix="", mode="save", mu=-0.28, eps_r=4.1, debye_length=1.8, anneal_cycles=10000, sim_params_template=None):
+def sqd_template_create(gate, prefix="", mode="save", parameters=None, sim_params_template=None):
     date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     if(sim_params_template is None):
         print("No sim params template provided, please provide them on the folder [See Simanneal as an example]")
         return "Error", ""
+    if(parameters is None):
+        print("No parameters provided, using default values")
     
     #Edit template with the parameters like XML
     #<anneal_cycles> something </anneal_cycles>
 
+
+
     sim_params = sim_params_template
-    sim_params = re.sub(r"<muzm>.*?</muzm>", f"<muzm>{mu}</muzm>", sim_params)
-    sim_params = re.sub(r"<eps_r>.*?</eps_r>", f"<eps_r>{eps_r}</eps_r>", sim_params)
-    sim_params = re.sub(r"<debye_length>.*?</debye_length>", f"<debye_length>{debye_length}</debye_length>", sim_params)
-    sim_params = re.sub(r"<debye>.*?</debye>", f"<debye>{debye_length}</debye>", sim_params) #Some templates use debye instead of debye_length
-    sim_params = re.sub(r"<anneal_cycles>.*?</anneal_cycles>", f"<anneal_cycles>{anneal_cycles}</anneal_cycles>", sim_params)
+
+    #substitute the params with the provided ones
+    if parameters is not None and len(parameters) > 0:
+        for key, value in parameters.items():
+            #use regex to replace the value between the tags <key>value</key>
+            pattern = f"(<{key}>)(.*?)(</{key}>)"
+            if re.search(pattern, sim_params):
+                sim_params = re.sub(pattern, lambda m: f"{m.group(1)}{value}{m.group(3)}", sim_params, flags=re.DOTALL)
+            else:
+                print(f"Parameter {key} not found in the template.")
 
     if(mode == "save"):
         header = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -247,4 +256,39 @@ def get_simulator_sim_template(simulator_path=None):
             return f.read()
     else:
         print("No template.txt file found in the simulator directory.")
+        return None
+
+def parse_physeng(file_path):
+    if not os.path.isfile(file_path):
+        print(f"File {file_path} does not exist.")
+        return None
+
+    try:
+        tree = ET.parse(file_path)
+        root = tree.getroot()
+        params = {}
+
+        for p in root.find('sim_params'):
+            param_id = p.tag
+            param_type = p.find('T').text
+            param_val = p.find('val').text
+            label = p.find('label').text if p.find('label') is not None else param_id
+            tip = p.find('tip').text if p.find('tip') is not None else ''
+            dp = p.find('dp').text if p.find('dp') is not None else 1
+            params[param_id] = {
+                'type': param_type,
+                'val': param_val,
+                'label': label,
+                'tip': tip,
+                'dp': dp
+            }
+            #print(param_id, param_val)
+        
+        return params
+
+    except ET.ParseError as e:
+        print(f"Error parsing XML file {file_path}: {e}")
+        return None
+    except Exception as e:
+        print(f"An error occurred: {e}")
         return None

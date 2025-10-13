@@ -36,7 +36,7 @@ app.layout = html.Div([
                 multi=False, placeholder='simanneal',
                 style={'width': '100%', 'gap': '10px'}
             ),
-        ], style={'flex': '1'}),
+        ], style={'flex': '0.8'}),
         html.Div([
             dcc.Dropdown(
                 id='algorithm-dropdown',
@@ -49,7 +49,7 @@ app.layout = html.Div([
                 multi=False, value='FIFO',
                 style={'width': '100%', 'gap': '10px'}
             ),
-        ], style={'flex': '1', 'marginLeft': '10px'}),
+        ], style={'flex': '0.8'}),
         html.Div([
             html.H3("SiDB Interconector", style={'textAlign': 'center', 'color': '#ffffff', }),
         ], style={'flex': '2'}),
@@ -146,6 +146,8 @@ def update_sim_dropdown_options(_):
 )
 
 def update_current_sim(selected_sim, sim_list):
+    if not sim_list:
+        return None
     if selected_sim is None:
         current_sim = None
         for sim in sim_list:
