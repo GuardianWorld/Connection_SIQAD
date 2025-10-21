@@ -1,4 +1,7 @@
 
+from sympy.logic.boolalg import Or, And, Not, Xor, Implies, Equivalent
+from sympy import Symbol, srepr, symbols, sympify
+
 class DBDot:
     def __init__(self, layer_id, latcoord, physloc, color):
         self.layer_id = layer_id
@@ -32,16 +35,16 @@ class DBDot:
             physloc=data['physloc'],
             color=data['color']
         )
-
-
         
 class Gate:
-    def __init__(self, db_dots, pivot_dot, input_perturbers, output_dot, name=None):
+    def __init__(self, db_dots, pivot_dot, input_perturbers, output_dot, name=None, expression=None, symbols=None):
         self.db_dots = db_dots
         self.pivot_dot = pivot_dot
         self.input_perturbers = input_perturbers
         self.name = name
         self.output_dot = output_dot
+        self.input_symbols = symbols
+        self.expression = expression  # Store the logical expression
 
     def __repr__(self):
         return (f"Gate(db_dots={self.db_dots}, pivot_dot={self.pivot_dot}, "
@@ -90,6 +93,8 @@ class Gate:
             'pivot_dot': self.pivot_dot.to_dict(),
             'input_perturbers': [pert.to_dict() for pert in self.input_perturbers],
             'output_dot': self.output_dot.to_dict(),
+            'input_symbols': [s.name for s in self.input_symbols] if self.input_symbols else None,
+            'expression': srepr(self.expression) if self.expression else None,
             'name': self.name,
         }
     
@@ -99,29 +104,60 @@ class Gate:
         pivot_dot = DBDot.from_dict(data['pivot_dot'])
         input_perturbers = [DBDot.from_dict(d) for d in data['input_perturbers']]
         output_dot = DBDot.from_dict(data['output_dot'])
-        return cls(db_dots, pivot_dot, input_perturbers, output_dot, data.get('name'))
+        symbols_list = [Symbol(name) for name in data['input_symbols']] if data.get('input_symbols') else None
+        gate = cls(db_dots, pivot_dot, input_perturbers, output_dot, data.get('name'), symbols=symbols_list)
+        if data.get('expression'):
+            gate.expression = sympify(data['expression'])
+        else:
+            gate.expression = None
+
+        return gate
         
       
 class Circuit:
-    def __init__(self, gates, input_perterbers, pivot_dot):
+    def __init__(self, gates, input_perturbers, pivot_dot, expression=None, symbols=None):
         self.gates = gates
-        self.input_perterbers = input_perterbers
+        self.input_perturbers = input_perturbers
         self.pivot_dot = pivot_dot
+        self.expression = expression  # Optional expression attribute
+        self.input_symbols = symbols
         
     def print_circuit(self):
         #Prints the circuit
         print("\nCircuit: ")
         print("Pivot Dot: ", self.pivot_dot)
         print("Input Perturbers: ")
-        for perturber in self.input_perterbers:
+        for perturber in self.input_perturbers:
             print(perturber)
         print("Gates: ")
         for gate in self.gates:
             print(gate.name)
             
     def set_input_perturbers(self, input_perturbers):
-        self.input_perterbers = input_perturbers
+        self.input_perturbers = input_perturbers
         
     
     
-    
+def extract_gates_from_name(name):
+    parts = name.split('_')
+    gates = []
+    for part in parts:
+        #Remove the Circuit part
+        if part == "Circuit":
+            continue
+        #Remove any numbers at the end of a part
+        gate = ''.join(filter(str.isalpha, part))
+        if gate:  # Ensure it's not empty
+            gates.append(gate)
+    return gates
+
+GATE_EXPRESSIONS = {
+    "AND": lambda inputs: And(*inputs),            # inputs: list of sympy symbols
+    "OR": lambda inputs: Or(*inputs),
+    "NAND": lambda inputs: Not(And(*inputs)),
+    "NOR": lambda inputs: Not(Or(*inputs)),
+    "NOT": lambda inputs: Not(inputs[0]),          # single input
+    "XOR": lambda inputs: Xor(*inputs),
+    "XNOR": lambda inputs: Not(Xor(*inputs)),
+    "MAJ": lambda inputs: (inputs[0] & inputs[1]) | (inputs[0] & inputs[2]) | (inputs[1] & inputs[2]),  # 3-input majority
+}

@@ -63,4 +63,3 @@ def call_sim(file, result_name, simulator=None, simmaneal_default_path=None):
     sys.stdout.flush()
     #print(result.stdout)
     return result_path
-

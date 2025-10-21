@@ -144,12 +144,12 @@ def circuit_to_gate(circuit):
                 db_dots.append(dot)
         
         pivot_dot = circuit.pivot_dot
-        input_perturbers = circuit.input_perterbers
+        input_perturbers = circuit.input_perturbers
         output_dot = circuit.gates[0].output_dot
         name = "Circuit"
         for gate in circuit.gates:
             name += f"_{gate.name}"
-        new_gate = Gate(db_dots, pivot_dot, input_perturbers,output_dot, name)
+        new_gate = Gate(db_dots, pivot_dot, input_perturbers,output_dot, name, circuit.expression, circuit.input_symbols)
         return new_gate
     except AttributeError as a:
         return circuit

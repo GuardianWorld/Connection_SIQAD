@@ -1,6 +1,9 @@
 from collections import deque
-from source.classes import DBDot, Gate, Circuit
+from source.classes import GATE_EXPRESSIONS, DBDot, Gate, Circuit
 from source import sqd_manipulator
+from sympy import symbols
+from source import classes
+
 
 def connect_2_gates(gate1, gate2, wire=None, wires=0, direction="left"):
     input_perturbers = []
@@ -215,6 +218,23 @@ def connect_n_gates_fifo(files, wires=2, min_horizontal_distance=7):
     gate_pos_name = []
     gate_pos_name.append((gates[0].name, gates[0].pivot_dot))
 
+    # --- LOGICAL EXPRESSION TRACKING ---
+    symbol_map = {}  # perturber -> sympy symbol/expression
+
+    # Assign symbols to root gate inputs
+    input_counter = 0
+    for inp in circuit.input_perturbers:
+        sym = symbols(f"x{input_counter}")
+        symbol_map[inp] = sym
+        input_counter += 1
+
+    # Compute root gate expression
+    c_name = classes.extract_gates_from_name(circuit.name)[0]
+    circuit.expression = GATE_EXPRESSIONS[c_name]([symbol_map[p] for p in circuit.input_perturbers])
+    symbol_map[circuit.pivot_dot] = circuit.expression
+
+
+
     for next_gate in gates[1:]:
         current_perturber, parent_pivot = perturber_queue.pop(0)
 
@@ -246,10 +266,33 @@ def connect_n_gates_fifo(files, wires=2, min_horizontal_distance=7):
                 dbdot.recalculate_physloc()
                 next_gate.db_dots.append(dbdot)
 
+        # --- LOGICAL CONNECTION ---
+        gate_inputs = []
+        # Make this next gate expression.
+        for p in next_gate.input_perturbers:
+            if p in symbol_map:
+                gate_inputs.append(symbol_map[p])
+            else:
+                # New symbol for unconnected input
+                sym = symbols(f"x{input_counter}")
+                symbol_map[p] = sym
+                gate_inputs.append(sym)
+                input_counter += 1
+
+        next_c_name = classes.extract_gates_from_name(next_gate.name)[0]
+        next_gate.expression = GATE_EXPRESSIONS[next_c_name](gate_inputs)
+        symbol_map[next_gate.pivot_dot] = next_gate.expression
+        # Remove used perturber from symbol map
+        # Replace expressions that use current_perturber with the new gate expression
+        symbol_to_replace = symbol_map[current_perturber]
+        for k in symbol_map:
+            symbol_map[k] = symbol_map[k].subs(symbol_to_replace, next_gate.expression)
+        # Delete the used perturber
+        del symbol_map[current_perturber]
         # Merge gates into circuit
         circuit = Circuit(
             [circuit, next_gate] if isinstance(circuit, Gate) else circuit.gates + [next_gate],
-            input_perterbers=[p for p, _ in perturber_queue] + sqd_manipulator.get_input_perturbers(next_gate.db_dots),
+            input_perturbers=[p for p, _ in perturber_queue] + sqd_manipulator.get_input_perturbers(next_gate.db_dots),
             pivot_dot=circuit.pivot_dot
         )
 
@@ -260,6 +303,15 @@ def connect_n_gates_fifo(files, wires=2, min_horizontal_distance=7):
         for p in sqd_manipulator.get_input_perturbers(next_gate.db_dots):
             perturber_queue.append((p, next_gate.pivot_dot))
 
+    #Grab the biggest expression as the circuit expression
+    circuit.expression = None
+    max_length = 0
+    for v in symbol_map.values():
+        if len(str(v)) > max_length:
+            max_length = len(str(v))
+            circuit.expression = v
+    # Save the input symbols used in the circuit
+    circuit.input_symbols = [symbol_map[p] for p in circuit.input_perturbers]
     #calculate all DBS in the circuit
 
 
@@ -334,7 +386,7 @@ def connect_n_gates_bottom_up(files, wires=2, min_horizontal_distance=7):
     # Step 6: Merge all gates into a circuit
     circuit = Circuit(
         gates,
-        input_perterbers=[p for g in gates for p in g.input_perturbers],
+        input_perturbers=[p for g in gates for p in g.input_perturbers],
         pivot_dot=gates[0].pivot_dot
     )
 

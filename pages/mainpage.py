@@ -12,6 +12,7 @@ import time
 from pages import configpage
 from dash import ClientsideFunction
 from pathlib import Path
+from sympy.logic.boolalg import truth_table
 
 data_temp = Path("data") / "temp"
 data_xml = Path("data") / "xml"
@@ -183,26 +184,22 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght, algorit
         circuit = gate_connector.connect_3_gates(gate1, gate2, gate3, wires=wire_lenght)
         gate = sqd_manipulator.circuit_to_gate(circuit)
     """
-    if len(selected_gates) == 1:
-        file1 = selected_gates[0]
-        gate = sqd_manipulator.main_operator(file1)
-        gate_pos_name = [(gate.name, gate.pivot_dot)]
-    else:
-        files = selected_gates
-        #circuit = gate_connector.connect_n_gates(files, wires=wire_lenght)
-        if(algorithm == "FIFO"):
-            circuit, gate_pos_name = gate_connector.connect_n_gates_fifo(files, wires=wire_lenght)
-        elif(algorithm == "CORNER"):
-            circuit = gate_connector.connect_n_gates(files, wire_lenght)
-        elif(algorithm == "BALANCED"):
-            circuit = gate_connector.connect_n_gates_balanced(files, wire_lenght)
-        elif(algorithm == "BOTTOMUP"):
-            circuit = gate_connector.connect_n_gates_bottom_up(files, wire_lenght)
-        gate = sqd_manipulator.circuit_to_gate(circuit)
+    files = selected_gates
+    #circuit = gate_connector.connect_n_gates(files, wires=wire_lenght)
+    if(algorithm == "FIFO"):
+        circuit, gate_pos_name = gate_connector.connect_n_gates_fifo(files, wires=wire_lenght)
+    elif(algorithm == "CORNER"):
+        circuit = gate_connector.connect_n_gates(files, wire_lenght)
+    elif(algorithm == "BALANCED"):
+        circuit = gate_connector.connect_n_gates_balanced(files, wire_lenght)
+    elif(algorithm == "BOTTOMUP"):
+        circuit = gate_connector.connect_n_gates_bottom_up(files, wire_lenght)
+    gate = sqd_manipulator.circuit_to_gate(circuit)
         
     viewport = get_viewport(gate)
     fig = plot_NML(gate, viewport, len(selected_gates), gate_pos_name)
     print(f"Selected gates: {gate_names}, Wire length: {wire_lenght}, {viewport_size(viewport)}")
+    print(f"Gate expression: {gate.expression}")
     
     return fig, gate.to_dict()        
 
@@ -274,6 +271,11 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
     file_manager.clear_folder(xml_string)
 
     gate = sqd_manipulator.Gate.from_dict(gate)
+    print(gate.expression)
+    expected = []
+
+    for values, output in truth_table(gate.expression, gate.input_symbols):
+        expected.append(int(bool(output)))
 
     if current_sim is None:
         sim = simmanneal_default_path
@@ -285,8 +287,6 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
         sim = sim.replace(".physeng", "")
     elif(os.name == 'nt'):
         sim = sim.replace(".physeng", ".exe")
-
-    
 
     print("Simulator: ", sim)
     print("Simulating gate:", gate.name)
@@ -335,7 +335,7 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
     data = [
     {
         "result": clean(row[0]),
-        "expected": "N/A",
+        "expected": "N/A" if row[1] >= len(expected) else clean(expected[row[1]]),
         "file_id": clean(row[1]),
         "energy": clean(row[2]),
     }
