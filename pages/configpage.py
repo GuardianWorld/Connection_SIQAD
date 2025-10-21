@@ -129,8 +129,9 @@ def update_config_ui(file):
     State({'type': 'sim-param', 'index': ALL}, 'value'),
     State({'type': 'sim-param', 'index': ALL}, 'id'),
     Input('current-sim-store', 'data'),
+    Input('sim-dropdown', 'value')
 )
-def apply_config(n_clicks, values, ids, current_sim):
+def apply_config(n_clicks, values, ids, current_sim, sim_value):
     if not n_clicks:
         #Check if the current sim has a Custom_sim_params.xml file, if so load it and return it.
         if current_sim is None:

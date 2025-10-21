@@ -307,18 +307,26 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
         print("No sim template found, Aborting.")
         return [], []
     for i in range(len(gates)):
-        file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation", sim_params_template=sim_template, parameters=config_sim)
-        file_path = str(data_temp / file_name)
-        file_manager.make_file(file_path, template)
-        
-        result_name = "result_" + file_name
-        #print(">>>>>", result_name)
-        result_path = implementation.call_sim(file_path, result_name, simulator=sim, simmaneal_default_path=simmanneal_default_path)
-        #print("Result path: " + result_path)
-        symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
-        specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))
+        try:
+            file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation", sim_params_template=sim_template, parameters=config_sim)
+            file_path = str(data_temp / file_name)
+            file_manager.make_file(file_path, template)
+            
+            result_name = "result_" + file_name
+            #print(">>>>>", result_name)
+            result_path = implementation.call_sim(file_path, result_name, simulator=sim, simmaneal_default_path=simmanneal_default_path)
+            #print("Result path: " + result_path)
+            symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
+            specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))
 
-        Results.append([symbol_table, i, energy])
+            Results.append([symbol_table, i, energy])
+        except Exception as e:
+            print(f"\nError reading result for simulation {i}: {e}")
+            print("Reasons could be: Simulator crash, incompatible simulator, Too many DBs, or invalid configuration.")
+            symbol_table, energy = "Error", "Error"
+            blank_row = {"result": "", "expected": "", "file_id": "", "energy": ""}
+            data = [blank_row.copy() for _ in range(20)]
+            return data, []
         if i % percentage_print == 0:
             print(f"#", end='', flush=True)
     
