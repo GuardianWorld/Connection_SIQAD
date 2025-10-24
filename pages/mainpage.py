@@ -1,5 +1,6 @@
 import dash
 from dash import clientside_callback, html, dcc, callback, Input, Output, State, dash_table
+from matplotlib import pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
@@ -108,6 +109,7 @@ layout = html.Div([
         tooltip={"placement": "bottom", "always_visible": False},
         className='ppm-slider'
     ),
+    html.Button("Save as PNG", id='save-button', n_clicks=0, style={'width': '200px', 'height': '35px', 'marginTop': '20px'}),
 ])
     
 
@@ -271,7 +273,6 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
     file_manager.clear_folder(xml_string)
 
     gate = sqd_manipulator.Gate.from_dict(gate)
-    print(gate.expression)
     expected = []
 
     for values, output in truth_table(gate.expression, gate.input_symbols):
@@ -427,3 +428,80 @@ clientside_callback(
     Input("log-trigger", "data"),
     prevent_initial_call=True
 )
+
+@callback(
+    Input('save-button', 'n_clicks'),
+    State('circuit-truth-table', 'data'),
+    State('specific-gate-data', 'data'),
+    State('gate-storage', 'data'),
+    State('current-sim-store', 'data'),
+    State('config-sim-store', 'data'),
+    prevent_initial_call=True
+)
+
+def save_current(n_clicks, table_data, specific_gate_data, gate_storage, sim_store, config_sim_store):
+    if n_clicks is None or n_clicks <= 0:
+        return
+
+    if not table_data or not specific_gate_data:
+        print("⚠️ No data to save.")
+        return
+    
+    #Get a name for the gate and make a folder for it on data/saved
+    gate = sqd_manipulator.Gate.from_dict(gate_storage)
+    gate_name = gate.name if gate.name else "unnamed_gate"
+    save_folder = Path("data") / "saved" / gate_name
+    save_folder.mkdir(parents=True, exist_ok=True)
+
+    # Save truth table as PNG
+    circuit_name = gate_name + "_truth_table"
+    expression_name = gate.expression 
+    simulator_name = sim_store if sim_store else "default_simanneal"
+    df = pd.DataFrame(table_data)
+    fig, ax = plt.subplots(figsize=(len(df.columns)*1.5, len(df)/2))
+    ax.axis('off')
+    ax.axis('tight')
+
+    # Add a title with the circuit and expression names
+    plt.title(f"Circuit: {circuit_name}\nExpression: {expression_name}", fontsize=14, pad=20)
+    table = ax.table(
+        cellText=df.values,
+        colLabels=df.columns,
+        loc='center',
+        cellLoc='center'
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1.2, 1.2)
+
+    plt.savefig(save_folder / "truth_table.png", dpi=300, bbox_inches='tight')
+    plt.close(fig)
+    print(f"✅ Truth table saved: {save_folder / 'truth_table.png'}")
+
+    # Save specific gate data plot as PNG
+    for i, gate_info in enumerate(specific_gate_data):
+        # Convert plot_XY data manually
+        x_coords = [dot[0] for dot in gate_info]
+        y_coords = [dot[1] for dot in gate_info]
+        colors = ['black' if dot[2] == '0' else 'blue' for dot in gate_info]
+        markers = ['o' if dot[2] == '1' else 'o' for dot in gate_info]
+
+        plt.figure(figsize=(6, 6))
+        for x, y, c in zip(x_coords, y_coords, colors):
+            plt.scatter(x, y, color=c, s=60, edgecolors='none')
+        plt.gca().invert_yaxis()
+        plt.axis('off')
+        plt.tight_layout()
+
+        plt.savefig(save_folder / f"specific_gate_{i}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+    print(f"✅ Gate data plots saved under {save_folder}")
+
+    #Save the configuration used for the simulation
+    config_file_path = save_folder / "simulation_config.txt"
+    with open(config_file_path, "w") as f:
+        f.write(f"Simulator: {simulator_name}\n")
+        f.write(f"Configuration Parameters:\n")
+        for key, value in config_sim_store.items():
+            f.write(f"{key}: {value}\n")
+    print(f"✅ Simulation configuration saved: {config_file_path}")

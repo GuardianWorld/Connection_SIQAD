@@ -1,3 +1,4 @@
 .venv*
 /data/temp/*
 /data/xml/*
+/data/saved/*
