@@ -242,7 +242,7 @@ def connect_n_gates_fifo(files, wires=2, min_horizontal_distance=7):
         gate_depth = depth_map[next_gate]
         current_wire = max(1, wires * (max_depth - gate_depth + 1))
         if(gate_depth == max_depth):
-            current_wire = 1
+            current_wire = wires
 
         n_shift = -2 if current_perturber.latcoord['n'] < parent_pivot.latcoord['n'] else 2
         m_shift = -1

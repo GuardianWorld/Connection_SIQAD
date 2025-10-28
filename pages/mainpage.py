@@ -351,6 +351,17 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
     for row in Results
     ]
 
+    for item in data:
+        result_val = str(item["result"])
+        #clean result_Val from ["0"] to 0
+        if result_val.startswith('[') and result_val.endswith(']'):
+            result_val = result_val.strip('[]')
+            result_val = result_val.strip().strip("'").strip('"')
+        expected_val = str(item["expected"])
+        
+        if expected_val != "N/A" and result_val != expected_val:
+            item["expected"] = f"{expected_val} 🔴"
+
     def pad_table_data(data, page_size=20):
         # If there are fewer rows than page size, fill with blanks
         rows_to_add = page_size - len(data) % page_size
