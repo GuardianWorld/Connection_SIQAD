@@ -110,6 +110,7 @@ layout = html.Div([
         className='ppm-slider'
     ),
     html.Button("Save as PNG", id='save-button', n_clicks=0, style={'width': '200px', 'height': '35px', 'marginTop': '20px'}),
+    html.Button("Auto Batch", id='auto-batch-button', n_clicks=0, style={'width': '200px', 'height': '35px', 'marginTop': '20px'}),
 ])
     
 
@@ -322,7 +323,7 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
 
             Results.append([symbol_table, i, energy])
         except Exception as e:
-            print(f"\nError reading result for simulation {i}: {e}")
+            print(f"\n ⚠️ Error reading result for simulation {i}: {e}")
             print("Reasons could be: Simulator crash, incompatible simulator, Too many DBs, or invalid configuration.")
             symbol_table, energy = "Error", "Error"
             blank_row = {"result": "", "expected": "", "file_id": "", "energy": ""}
@@ -516,3 +517,213 @@ def save_current(n_clicks, table_data, specific_gate_data, gate_storage, sim_sto
         for key, value in config_sim_store.items():
             f.write(f"{key}: {value}\n")
     print(f"✅ Simulation configuration saved: {config_file_path}")
+
+@callback(
+    Input('auto-batch-button', 'n_clicks'),
+    State('files-store', 'data'),
+    State('current-sim-store', 'data'),
+    State('config-sim-store', 'data'),
+    prevent_initial_call=True
+)
+def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
+    if n_clicks is None or n_clicks <= 0:
+        return
+
+    if not files_data or len(files_data) == 0:
+        print("⚠️ No files to process for auto batch.")
+        return
+
+    print("Starting auto batch simulation for all gates...")
+    #In here, we will make combinations of:
+    # Single Gates
+    # 2-Gate combinations
+    # 3-Gate combinations
+    # 4-Gate combinations
+    # 5-Gate combinations
+
+    
+    #single_gates = [(f,) for f in files_data]
+    #two_gate_combos = list(combinations(files_data, 2))
+    #three_gate_combos = list(combinations(files_data, 3))
+    #four_gate_combos = list(combinations(files_data, 4))
+    #five_gate_combos = list(combinations(files_data, 5))
+    wire_length = 1  # Default wire length
+    from itertools import permutations
+    all_combos = []
+    for r in range(1, 6):
+        all_combos.extend(list(permutations(files_data, r)))
+    #all_combos = single_gates + two_gate_combos + three_gate_combos + four_gate_combos + five_gate_combos
+    print(f"Total combinations to simulate: {len(all_combos)}")
+
+    i = 0
+    for combo in all_combos:
+        if(i % 10 == 0):
+            time.sleep(1)            
+        i += 1
+        selected_gates = combo
+
+        # Connect gates using FIFO algorithm
+        #print("DEBUG: selected_gates:", selected_gates)
+        circuit, gate_pos_name = gate_connector.connect_n_gates_fifo(selected_gates, wires=wire_length)
+        gate = sqd_manipulator.circuit_to_gate(circuit)
+
+        # Simulate the gate
+        temp_string = str(data_temp)
+        xml_string = str(data_xml)
+        file_manager.clear_folder(temp_string)
+        file_manager.clear_folder(xml_string)
+
+        expected = []
+        for values, output in truth_table(gate.expression, gate.input_symbols):
+            expected.append(int(bool(output)))
+
+        if current_sim is None:
+            sim = simmanneal_default_path
+        else:
+            sim = current_sim
+
+        # cleanup sim
+        if(os.name == 'posix'):
+            sim = sim.replace(".physeng", "")
+        elif(os.name == 'nt'):
+            sim = sim.replace(".physeng", ".exe")
+
+        #print(f"Simulating combination: {[os.path.basename(g) for g in selected_gates]} with wire length {wire_length}")
+
+        Results = []
+        specific_gate_data = []
+        gates = sqd_manipulator.combinators(gate)
+        #print(f"Total simulations for this combination: {len(gates)}")
+
+        sim_template = file_manager.gen_simulator_sim_template(simulator_path=sim)
+        if sim_template is None:
+            sim_template = file_manager.get_simulator_sim_template(sim)
+        if sim_template is None:
+            print("No sim template found, Aborting")
+            return
+        for i in range(len(gates)):
+            try:
+                file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation", sim_params_template=sim_template, parameters=config_sim_store)
+                file_path = str(data_temp / file_name)
+                file_manager.make_file(file_path, template)
+                
+                result_name = "result_" + file_name
+                result_path = implementation.call_sim(file_path, result_name, simulator=sim, simmaneal_default_path=simmanneal_default_path)
+                symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
+                specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))
+
+                Results.append([symbol_table, i, energy])
+            except Exception as e:
+                print(f"\n ⚠️ Error reading result for simulation {i} in combination {[os.path.basename(g) for g in selected_gates]}: {e}")
+                print("Reasons could be: Simulator crash, incompatible simulator, Too many DBs, or invalid configuration.")
+                continue
+        columns = ["Result", "Expected", "File_ID", "Energy"]
+
+        def clean(val):
+            if isinstance(val, (int, float, str, bool)) or val is None:
+                return val
+            return str(val)  # fallback to string
+
+        data = [
+        {
+            "result": clean(row[0]),
+            "expected": "N/A" if row[1] >= len(expected) else clean(expected[row[1]]),
+            "file_id": clean(row[1]),
+            "energy": clean(row[2]),
+        }
+        for row in Results
+        ]
+
+        #Bool for saving separated in case EXPECTED vs RESULT is different
+        separate_results = False
+
+        for item in data:
+            result_val = str(item["result"])
+            #clean result_Val from ["0"] to 0
+            if result_val.startswith('[') and result_val.endswith(']'):
+                result_val = result_val.strip('[]')
+                result_val = result_val.strip().strip("'").strip('"')
+            expected_val = str(item["expected"])
+            
+            if expected_val != "N/A" and result_val != expected_val:
+                item["expected"] = f"{expected_val} <<<<"
+                separate_results = True
+
+        def pad_table_data(data, page_size=20):
+            # If there are fewer rows than page size, fill with blanks
+            rows_to_add = page_size - len(data) % page_size
+            if rows_to_add > 0:
+                blank_row = {col: "" for col in data[0].keys()} if data else {"result": "", "expected": "", "file_id": "", "energy": ""}
+                data += [blank_row.copy() for _ in range(rows_to_add)]
+            return data
+        
+        data = pad_table_data(data, page_size=20)
+
+        # Save results just like the save_current function
+        gate_name = gate.name if gate.name else f"unnamed_gate{str(combo)}"
+        #Get the number of gates
+
+        if separate_results:
+            num_gates = f"{len(selected_gates)}_with_mismatches"
+        else:
+            num_gates = str(len(selected_gates))
+            
+        save_folder = Path("data") / "auto_batch_results" / f"{num_gates}" / gate_name
+        save_folder.mkdir(parents=True, exist_ok=True)
+
+        # Save truth table as PNG
+        circuit_name = gate_name + "_truth_table"
+        expression_name = gate.expression
+        simulator_name = current_sim if current_sim else "default_simanneal"
+        df = pd.DataFrame(data)
+        fig, ax = plt.subplots(figsize=(len(df.columns)*1.5, len(df)/2))
+        ax.axis('off')
+        ax.axis('tight')
+
+        # Add a title with the circuit and expression names
+        plt.title(f"Circuit: {circuit_name}\nExpression: {expression_name}", fontsize=14, pad=20)
+        table = ax.table(
+            cellText=df.values,
+            colLabels=df.columns,
+            loc='center',
+            cellLoc='center'
+        )
+        table.auto_set_font_size(False)
+        table.set_fontsize(10)
+        table.scale(1.2, 1.2)
+
+        plt.savefig(save_folder / f"{circuit_name}_truth_table.png", dpi=300, bbox_inches='tight')
+        plt.close(fig)
+        #print(f"✅ Truth table saved: {save_folder / f'{circuit_name}_truth_table.png'}")
+
+        # Save specific gate data plot as PNG
+        for i, gate_info in enumerate(specific_gate_data):
+            # Convert plot_XY data manually
+            x_coords = [dot[0] for dot in gate_info]
+            y_coords = [dot[1] for dot in gate_info]
+            colors = ['black' if dot[2] == '0' else 'blue' for dot in gate_info]
+            markers = ['o' if dot[2] == '1' else 'o' for dot in gate_info]
+
+            plt.figure(figsize=(6, 6))
+            for x, y, c in zip(x_coords, y_coords, colors):
+                plt.scatter(x, y, color=c, s=60, edgecolors='none')
+            plt.gca().invert_yaxis()
+            plt.axis('off')
+            plt.tight_layout()
+
+            plt.savefig(save_folder / f"specific_gate_{i}.png", dpi=300, bbox_inches='tight')
+            plt.close()
+        #print(f"✅ Gate data plots saved under {save_folder}")
+
+        config_file_path = save_folder / "simulation_config.txt"
+        with open(config_file_path, "w") as f:
+            f.write(f"Simulator: {simulator_name}\n")
+            f.write(f"Configuration Parameters:\n")
+            for key, value in config_sim_store.items():
+                f.write(f"{key}: {value}\n")
+        #print(f"✅ Simulation configuration saved: {config_file_path}")
+        if separate_results:
+            print(f"✅ Completed simulation and saving for combination: {[os.path.basename(g) for g in selected_gates]} ⚠️ mismatch found")
+        else:
+            print(f"✅ Completed simulation and saving for combination: {[os.path.basename(g) for g in selected_gates]}")
+    print("✅ Auto batch simulation completed for all gates.")
