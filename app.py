@@ -171,11 +171,7 @@ def update_algorithm_store(selected_algorithm):
 
 
 if __name__ == '__main__':
-    #app.run(debug=True)
+    app.run(debug=True)
     #If needed to run in server:
-
-    import logging
-    log = logging.getLogger('werkzeug')
-    log.setLevel(logging.ERROR)
-    app.run(host='0.0.0.0', debug=False)
+    #app.run(host='0.0.0.0',port=8050,debug=True)
 

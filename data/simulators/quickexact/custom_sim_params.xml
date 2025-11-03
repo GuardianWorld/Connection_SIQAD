@@ -1,1 +1,1 @@
-{'autofail': 30, 'eps_r': 4.1, 'muzm': -0.28, 'debye_length': 1.8, 'base_number': 2, 'glob_pot': 0, 'autodetection': 0}
+{'autofail': 16, 'num_threads': -1, 'eps_r': 5.6, 'muzm': -0.25, 'debye_length': 5, 'base_number': 3, 'glob_pot': 0, 'presim_stats': 0, 'witness_partitioning_limit': 6, 'overlapping_witnesses_limit': 6}

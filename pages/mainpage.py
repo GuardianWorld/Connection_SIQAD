@@ -1,7 +1,6 @@
 import csv
 import dash
 from dash import clientside_callback, html, dcc, callback, Input, Output, State, dash_table
-import matplotlib
 from matplotlib import pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
@@ -17,7 +16,6 @@ from dash import ClientsideFunction
 from pathlib import Path
 from sympy.logic.boolalg import truth_table
 
-matplotlib.use("Agg")
 data_temp = Path("data") / "temp"
 data_xml = Path("data") / "xml"
 data_simulators = Path("data") / "simulators"
@@ -530,9 +528,8 @@ def save_current(n_clicks, table_data, specific_gate_data, gate_storage, sim_sto
 )
 
 def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
-    from itertools import product
+    from itertools import permutations
     import csv
-    from datetime import datetime
 
 
     if n_clicks is None or n_clicks <= 0:
@@ -545,7 +542,7 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
     print("Starting auto batch simulation for all gates...")
 
     #Prepare CSV
-    summary_csv_path = Path("data/auto_batch_results") / "summary.csv"
+    summary_csv_path = Path("data/auto_batch_results") / "mismatch_summary.csv"
     summary_csv_path.parent.mkdir(parents=True, exist_ok=True)
 
 
@@ -563,94 +560,26 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
     #four_gate_combos = list(combinations(files_data, 4))
     #five_gate_combos = list(combinations(files_data, 5))
     wire_length = 1  # Default wire length
-    last_num_gates = 1
+
     all_combos = []
-    for r in range(1, 5):  
-        all_combos.extend(list(product(files_data, repeat=r)))
-
-    def normalize_combo(combo):
-        """Return tuple of just the gate filenames (order preserved)."""
-        return tuple(os.path.basename(g) for g in combo)
-    
-    seen = set()
-    unique_combos = []
-    for combo in all_combos:
-        norm = normalize_combo(combo)
-        if norm not in seen:
-            seen.add(norm)
-            unique_combos.append(combo)
-
-    group_sizes = []
-    for combo in unique_combos:
-        while len(group_sizes) < len(combo):
-            group_sizes.append(0)
-        group_sizes[len(combo)-1] += 1
-
-    for size, count in enumerate(group_sizes):
-        print(f"Total {size+1}-gate combinations: {count}")
-    current_group = 0
-
+    for r in range(1, 6):  
+        all_combos.extend(list(permutations(files_data, r)))
     #all_combos = single_gates + two_gate_combos + three_gate_combos + four_gate_combos + five_gate_combos
-    print(f"Total combinations to simulate: {len(unique_combos)}")
+    print(f"Total combinations to simulate: {len(all_combos)}")
 
-    file_exists = summary_csv_path.exists()
-    with open(summary_csv_path, mode='a', newline='') as csv_file:
-        csv_writer = csv.DictWriter(csv_file, fieldnames=['RowType', 'Combination', 'Expression', 'Num_Gates', 'Mismatch', 'Timestamp', 'Runtime_s'])
-        if not file_exists:
-            csv_writer.writeheader()
+    x = 0
+
+    with open(summary_csv_path, mode='w', newline='') as csv_file:
+        csv_writer = csv.DictWriter(csv_file, fieldnames=['RowType', 'Combination', 'Num_Gates', 'Mismatch'])
+        csv_writer.writeheader()
         total_combinations = 0
         total_mismatches = 0
-        completed_combos = set()
-        if(file_exists):
-            with open(summary_csv_path, mode='r') as read_file:
-                csv_reader = csv.DictReader(read_file)
-                for row in csv_reader:
-                    if not row.get('RowType'):
-                        continue
-                    if row['RowType'] != 'DATA':
-                        continue
-                    combo_name = row.get('Combination', '').strip()
-                    if not combo_name:
-                        continue
-                    completed_combos.add(combo_name)
-                    total_combinations += 1
-                    if row['Mismatch'] == 'TRUE':
-                        total_mismatches += 1
 
-            print(f"❗ Found {len(completed_combos)} completed combinations. Resuming from last progress... ❗")
-            print(f"Total combinations so far: {total_combinations}, with mismatches: {total_mismatches}")
-            mismatch_percentage = (total_mismatches / total_combinations * 100) if total_combinations > 0 else 0
-            print(f"Mismatch percentage so far: {mismatch_percentage:.2f}%")
-        else:
-            print("Starting fresh auto batch simulation.")
-
-
-
-        #Time storage for calculations
-        avg_time = 0
-        expected_runtime = 0
-
-        for combo in unique_combos:  
-            if(len(combo) != last_num_gates):
-                print(f"❗ Now processing {len(combo)}-gate combinations ❗")
-                csv_writer.writerow({
-                    'RowType': 'SECTION',
-                    'Combination': f'--- {len(combo)}-GATE COMBINATIONS ---',
-                    'Timestamp': datetime.now().isoformat()
-                })
-                csv_file.flush()
-                last_num_gates = len(combo)    
-                avg_time = 0
-                current_group += 1
+        for combo in all_combos:
+            if(x % 10 == 0):
+                time.sleep(1)            
+            x += 1
             selected_gates = combo
-
-            combo_name = "_".join([os.path.basename(g) for g in selected_gates])
-            if combo_name in completed_combos:
-                print(f"⚠️ Skipping already completed combination: {combo_name}")
-                group_sizes[current_group] -= 1
-                continue
-
-            starting_time = time.time()
 
             # Connect gates using FIFO algorithm
             #print("DEBUG: selected_gates:", selected_gates)
@@ -691,41 +620,22 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
             if sim_template is None:
                 print("No sim template found, Aborting")
                 return
-            
-            
-            max_retries = 3
-            retry_sleep = 5
-            failed = False
-
             for i in range(len(gates)):
-                attempts = 0
-                while attempts < max_retries:
-                    try:
-                        file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation", sim_params_template=sim_template, parameters=config_sim_store)
-                        file_path = str(data_temp / file_name)
-                        file_manager.make_file(file_path, template)
-                        
-                        result_name = "result_" + file_name
-                        result_path = implementation.call_sim(file_path, result_name, simulator=sim, simmaneal_default_path=simmanneal_default_path)
-                        symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
-                        specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))
+                try:
+                    file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation", sim_params_template=sim_template, parameters=config_sim_store)
+                    file_path = str(data_temp / file_name)
+                    file_manager.make_file(file_path, template)
+                    
+                    result_name = "result_" + file_name
+                    result_path = implementation.call_sim(file_path, result_name, simulator=sim, simmaneal_default_path=simmanneal_default_path)
+                    symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
+                    specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))
 
-                        Results.append([symbol_table, i, energy])
-                        break  
-                    except Exception as e:
-                        attempts += 1
-                        print(f"\n ⚠️ Error reading result for simulation {i} in combination {[os.path.basename(g) for g in selected_gates]}: {e}")
-                        if attempts < max_retries:
-                            print(f"Retrying ({attempts}/{max_retries}) after {retry_sleep} seconds...")
-                            time.sleep(retry_sleep)
-                        else:
-                            print(f"Max retries reached for simulation {i}. Skipping this simulation.")
-                            symbol_table, energy = "Error", "Error"
-                            Results.append([symbol_table, i, energy])
-                            failed = True
-                if failed:
-                    break
-                        
+                    Results.append([symbol_table, i, energy])
+                except Exception as e:
+                    print(f"\n ⚠️ Error reading result for simulation {i} in combination {[os.path.basename(g) for g in selected_gates]}: {e}")
+                    print("Reasons could be: Simulator crash, incompatible simulator, Too many DBs, or invalid configuration.")
+                    continue
             columns = ["Result", "Expected", "File_ID", "Energy"]
 
             def clean(val):
@@ -763,37 +673,14 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
             if separate_results:
                 total_mismatches += 1
 
-            end_time = time.time()
-            runtime_s = end_time - starting_time
             csv_row = {
-                'RowType': 'DATA' if not failed else 'ERROR',
+                'RowType': 'DATA',
                 'Combination': "_".join([os.path.basename(g) for g in selected_gates]),
-                'Expression': str(gate.expression) if not failed else "N/A",
                 'Num_Gates': len(selected_gates),
-                'Mismatch': 'TRUE' if separate_results else 'FALSE',
-                'Timestamp': datetime.now().isoformat(),
-                'Runtime_s': f"{runtime_s:.2f}"
+                'Mismatch': separate_results
             }
-
-
-
             csv_writer.writerow(csv_row)
             csv_file.flush()
-
-            #Time calculations
-            if avg_time == 0:
-                avg_time = runtime_s
-            else:
-                avg_time = (avg_time + runtime_s) / 2.0
-            expected_runtime = avg_time * group_sizes[current_group]
-            group_sizes[current_group] = group_sizes[current_group] - 1
-            #print(group_sizes[current_group])
-            minutes = int(expected_runtime // 60)
-            seconds = int(expected_runtime % 60)
-            if group_sizes[current_group] <= 0:
-                minutes = 0
-                seconds = 0
-            formatted_time = f"{minutes}:{seconds:02d}"
 
             def pad_table_data(data, page_size=20):
                 # If there are fewer rows than page size, fill with blanks
@@ -868,15 +755,10 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
                 for key, value in config_sim_store.items():
                     f.write(f"{key}: {value}\n")
             #print(f"✅ Simulation configuration saved: {config_file_path}")
-            print(f"⏲ Runtime: {runtime_s:<.2f}s, Estimated time remaining for group: {formatted_time}")
             if separate_results:
                 print(f"✅ Completed simulation and saving for combination: {[os.path.basename(g) for g in selected_gates]} ⚠️ mismatch found")
             else:
                 print(f"✅ Completed simulation and saving for combination: {[os.path.basename(g) for g in selected_gates]}")
-            
-            time_to_sleep = max(0.5, len(selected_gates) - 1)
-            time_to_sleep = min(time_to_sleep, 4.0)
-            time.sleep(time_to_sleep)  # Sleep to avoid overloading the simulator
 
 
         # After all combinations, calculate mismatch statistics
