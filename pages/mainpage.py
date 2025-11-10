@@ -311,29 +311,39 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
     if sim_template is None:
         print("No sim template found, Aborting.")
         return [], []
-    for i in range(len(gates)):
-        try:
-            file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation", sim_params_template=sim_template, parameters=config_sim)
-            file_path = str(data_temp / file_name)
-            file_manager.make_file(file_path, template)
-            
-            result_name = "result_" + file_name
-            #print(">>>>>", result_name)
-            result_path = implementation.call_sim(file_path, result_name, simulator=sim, simmaneal_default_path=simmanneal_default_path)
-            #print("Result path: " + result_path)
-            symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
-            specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))
 
-            Results.append([symbol_table, i, energy])
-        except Exception as e:
-            print(f"\n ⚠️ Error reading result for simulation {i}: {e}")
-            print("Reasons could be: Simulator crash, incompatible simulator, Too many DBs, or invalid configuration.")
-            symbol_table, energy = "Error", "Error"
-            blank_row = {"result": "", "expected": "", "file_id": "", "energy": ""}
-            data = [blank_row.copy() for _ in range(20)]
-            return data, []
-        if i % percentage_print == 0:
-            print(f"#", end='', flush=True)
+    max_retries = 3
+    retry_sleep = 5
+    for i in range(len(gates)):
+        attempts = 0
+        while attempts < max_retries:
+            try:
+                file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation", sim_params_template=sim_template, parameters=config_sim)
+                file_path = str(data_temp / file_name)
+                file_manager.make_file(file_path, template)
+                
+                result_name = "result_" + file_name
+                #print(">>>>>", result_name)
+                result_path = implementation.call_sim(file_path, result_name, simulator=sim, simmaneal_default_path=simmanneal_default_path)
+                #print("Result path: " + result_path)
+                symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
+                specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))
+
+                Results.append([symbol_table, i, energy])
+                break
+            except Exception as e:
+                attempts += 1
+                print(f"\n ⚠️ Error reading result for simulation {i}: {e}")
+                if attempts < max_retries:
+                    print(f"Retrying ({attempts}/{max_retries}) after {retry_sleep} seconds...")
+                    time.sleep(retry_sleep)
+                else:
+                    print(f"Max retries reached for simulation {i}. Skipping this simulation.")
+                    symbol_table, energy = "Error", "Error"
+                    Results.append([symbol_table, i, energy])
+                    return data, []
+            if i % percentage_print == 0:
+                print(f"#", end='', flush=True)
     
     print("]")    
     #print(implementation.make_table(["Result", gate.name, "Energy"], Results))
@@ -868,7 +878,6 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
                 for key, value in config_sim_store.items():
                     f.write(f"{key}: {value}\n")
             #print(f"✅ Simulation configuration saved: {config_file_path}")
-            print(f"⏲ Runtime: {runtime_s:<.2f}s, Estimated time remaining for group: {formatted_time}")
             if separate_results:
                 print(f"✅ Completed simulation and saving for combination: {[os.path.basename(g) for g in selected_gates]} ⚠️ mismatch found")
             else:
@@ -877,6 +886,9 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
             time_to_sleep = max(0.5, len(selected_gates) - 1)
             time_to_sleep = min(time_to_sleep, 4.0)
             time.sleep(time_to_sleep)  # Sleep to avoid overloading the simulator
+            final_runtime = time.time() - starting_time
+            print(f"⏲ Runtime: {final_runtime:<.2f}s, Estimated time remaining for group: {formatted_time}")
+            
 
 
         # After all combinations, calculate mismatch statistics
