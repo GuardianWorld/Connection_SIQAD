@@ -169,27 +169,6 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght, algorit
     #Print JUST the names
     gate_names = [os.path.basename(gate) for gate in selected_gates]
     gate_pos_name = None
-    """"
-    if len(selected_gates) == 1:
-        file1 = selected_gates[0]
-        gate = sqd_manipulator.main_operator(file1)
-    if len(selected_gates) == 2:
-        file1 = selected_gates[0]
-        file2 = selected_gates[1]
-        gate1 = sqd_manipulator.main_operator(file1)
-        gate2 = sqd_manipulator.main_operator(file2)
-        circuit = gate_connector.connect_2_gates(gate1, gate2, wires=wire_lenght)            
-        gate = sqd_manipulator.circuit_to_gate(circuit)
-    if len(selected_gates) == 3:
-        file1 = selected_gates[0]
-        file2 = selected_gates[1]
-        file3 = selected_gates[2]
-        gate1 = sqd_manipulator.main_operator(file1)
-        gate2 = sqd_manipulator.main_operator(file2)
-        gate3 = sqd_manipulator.main_operator(file3)
-        circuit = gate_connector.connect_3_gates(gate1, gate2, gate3, wires=wire_lenght)
-        gate = sqd_manipulator.circuit_to_gate(circuit)
-    """
     files = selected_gates
     #circuit = gate_connector.connect_n_gates(files, wires=wire_lenght)
     if(algorithm == "FIFO"):
@@ -261,11 +240,10 @@ def store_selected_gate(button1, button2, button3, selected_gate, stored):
     Output('specific-gate-data', 'data'),
     Input('btn-simulate', 'n_clicks'),
     State('gate-storage', 'data'),
-    State('sim-store', 'data'),
     State('current-sim-store', 'data'),
     State('config-sim-store', 'data')
 )
-def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
+def simulate_circuit(n_clicks, gate, current_sim, config_sim, called_from_callback=True, max_mismatches=3):
     if not gate:
         #Create a padded empty table
         blank_row = {"result": "", "expected": "", "file_id": "", "energy": ""}
@@ -276,7 +254,9 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
     file_manager.clear_folder(temp_string)
     file_manager.clear_folder(xml_string)
 
-    gate = sqd_manipulator.Gate.from_dict(gate)
+    if(isinstance(gate, dict)):
+        gate = sqd_manipulator.Gate.from_dict(gate)
+        
     expected = []
 
     for values, output in truth_table(gate.expression, gate.input_symbols):
@@ -293,16 +273,16 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
     elif(os.name == 'nt'):
         sim = sim.replace(".physeng", ".exe")
 
-    print("Simulator: ", sim)
-    print("Simulating gate:", gate.name)
+    print(f"Simulator: {sim}, gate: {gate.name}")
+
+
 
     Results = []
     specific_gate_data = []
     gates = sqd_manipulator.combinators(gate)
-    print(f"Total simulations: {len(gates)}")
+    if called_from_callback:
+        print(f"Total simulations to run: {len(gates)}")
     percentage_print = max(1, len(gates) // 8)
-    if len(gates) > 16:
-        print("Large number of simulations, this might take a while...")
 
     print("Progress: [", end='', flush=True)
     sim_template = file_manager.gen_simulator_sim_template(simulator_path=sim)
@@ -314,8 +294,12 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
 
     max_retries = 3
     retry_sleep = 5
+
+    mismatches_found = 0
     for i in range(len(gates)):
         attempts = 0
+        if mismatches_found >= max_mismatches:
+            break
         while attempts < max_retries:
             try:
                 file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation", sim_params_template=sim_template, parameters=config_sim)
@@ -330,6 +314,10 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
                 specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))
 
                 Results.append([symbol_table, i, energy])
+                symbol_value = int(symbol_table[0])
+                expected_value = expected[i]
+                if symbol_value != expected_value:
+                    mismatches_found += 1
                 break
             except Exception as e:
                 attempts += 1
@@ -341,11 +329,16 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
                     print(f"Max retries reached for simulation {i}. Skipping this simulation.")
                     symbol_table, energy = "Error", "Error"
                     Results.append([symbol_table, i, energy])
-                    return data, []
-            if i % percentage_print == 0:
+                    if called_from_callback:
+                        return data, []
+                    else:
+                        return [], [], True, True  # Indicate failure
+        if i % percentage_print == 0:
                 print(f"#", end='', flush=True)
     
     print("]")    
+    if mismatches_found >= max_mismatches:
+        print(f"⚠️ Maximum mismatches reached ({max_mismatches}). Stopping further simulations.")
     #print(implementation.make_table(["Result", gate.name, "Energy"], Results))
 
     columns = ["Result", "Expected", "File_ID", "Energy"]
@@ -365,6 +358,7 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
     for row in Results
     ]
 
+    separate_results = False
     for item in data:
         result_val = str(item["result"])
         #clean result_Val from ["0"] to 0
@@ -375,6 +369,7 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
         
         if expected_val != "N/A" and result_val != expected_val:
             item["expected"] = f"{expected_val} 🔴"
+            separate_results = True
 
     def pad_table_data(data, page_size=20):
         # If there are fewer rows than page size, fill with blanks
@@ -386,8 +381,10 @@ def simulate_circuit(n_clicks, gate, simulator_path, current_sim, config_sim):
     
     data = pad_table_data(data, page_size=20)
 
-    
-    return data, specific_gate_data
+    if called_from_callback:
+        return data, specific_gate_data
+    else:
+        return data, specific_gate_data, separate_results, False
 
 
 @callback(
@@ -558,24 +555,10 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
     summary_csv_path = Path("data/auto_batch_results") / "summary.csv"
     summary_csv_path.parent.mkdir(parents=True, exist_ok=True)
 
-
-    #In here, we will make combinations of:
-    # Single Gates
-    # 2-Gate combinations
-    # 3-Gate combinations
-    # 4-Gate combinations
-    # 5-Gate combinations
-
-    
-    #single_gates = [(f,) for f in files_data]
-    #two_gate_combos = list(combinations(files_data, 2))
-    #three_gate_combos = list(combinations(files_data, 3))
-    #four_gate_combos = list(combinations(files_data, 4))
-    #five_gate_combos = list(combinations(files_data, 5))
     wire_length = 1  # Default wire length
     last_num_gates = 1
     all_combos = []
-    for r in range(1, 6):  
+    for r in range(1, 2):  
         all_combos.extend(list(product(files_data, repeat=r)))
 
     def normalize_combo(combo):
@@ -634,8 +617,6 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
         else:
             print("Starting fresh auto batch simulation.")
 
-
-
         #Time storage for calculations
         avg_time = 0
         expected_runtime = 0
@@ -643,11 +624,6 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
         for combo in unique_combos:  
             if(len(combo) != last_num_gates):
                 print(f"❗ Now processing {len(combo)}-gate combinations ❗")
-                csv_writer.writerow({
-                    'RowType': 'SECTION',
-                    'Combination': f'--- {len(combo)}-GATE COMBINATIONS ---',
-                    'Timestamp': datetime.now().isoformat()
-                })
                 csv_file.flush()
                 last_num_gates = len(combo)    
                 avg_time = 0
@@ -668,105 +644,7 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
             gate = sqd_manipulator.circuit_to_gate(circuit)
 
             # Simulate the gate
-            temp_string = str(data_temp)
-            xml_string = str(data_xml)
-            file_manager.clear_folder(temp_string)
-            file_manager.clear_folder(xml_string)
-
-            expected = []
-            for values, output in truth_table(gate.expression, gate.input_symbols):
-                expected.append(int(bool(output)))
-
-            if current_sim is None:
-                sim = simmanneal_default_path
-            else:
-                sim = current_sim
-
-            # cleanup sim
-            if(os.name == 'posix'):
-                sim = sim.replace(".physeng", "")
-            elif(os.name == 'nt'):
-                sim = sim.replace(".physeng", ".exe")
-
-            #print(f"Simulating combination: {[os.path.basename(g) for g in selected_gates]} with wire length {wire_length}")
-
-            Results = []
-            specific_gate_data = []
-            gates = sqd_manipulator.combinators(gate)
-            #print(f"Total simulations for this combination: {len(gates)}")
-
-            sim_template = file_manager.gen_simulator_sim_template(simulator_path=sim)
-            if sim_template is None:
-                sim_template = file_manager.get_simulator_sim_template(sim)
-            if sim_template is None:
-                print("No sim template found, Aborting")
-                return
-            
-            
-            max_retries = 3
-            retry_sleep = 5
-            failed = False
-
-            for i in range(len(gates)):
-                attempts = 0
-                while attempts < max_retries:
-                    try:
-                        file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation", sim_params_template=sim_template, parameters=config_sim_store)
-                        file_path = str(data_temp / file_name)
-                        file_manager.make_file(file_path, template)
-                        
-                        result_name = "result_" + file_name
-                        result_path = implementation.call_sim(file_path, result_name, simulator=sim, simmaneal_default_path=simmanneal_default_path)
-                        symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
-                        specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))
-
-                        Results.append([symbol_table, i, energy])
-                        break  
-                    except Exception as e:
-                        attempts += 1
-                        print(f"\n ⚠️ Error reading result for simulation {i} in combination {[os.path.basename(g) for g in selected_gates]}: {e}")
-                        if attempts < max_retries:
-                            print(f"Retrying ({attempts}/{max_retries}) after {retry_sleep} seconds...")
-                            time.sleep(retry_sleep)
-                        else:
-                            print(f"Max retries reached for simulation {i}. Skipping this simulation.")
-                            symbol_table, energy = "Error", "Error"
-                            Results.append([symbol_table, i, energy])
-                            failed = True
-                if failed:
-                    break
-                        
-            columns = ["Result", "Expected", "File_ID", "Energy"]
-
-            def clean(val):
-                if isinstance(val, (int, float, str, bool)) or val is None:
-                    return val
-                return str(val)  # fallback to string
-
-            data = [
-            {
-                "result": clean(row[0]),
-                "expected": "N/A" if row[1] >= len(expected) else clean(expected[row[1]]),
-                "file_id": clean(row[1]),
-                "energy": clean(row[2]),
-            }
-            for row in Results
-            ]
-
-            #Bool for saving separated in case EXPECTED vs RESULT is different
-            separate_results = False
-
-            for item in data:
-                result_val = str(item["result"])
-                #clean result_Val from ["0"] to 0
-                if result_val.startswith('[') and result_val.endswith(']'):
-                    result_val = result_val.strip('[]')
-                    result_val = result_val.strip().strip("'").strip('"')
-                expected_val = str(item["expected"])
-                
-                if expected_val != "N/A" and result_val != expected_val:
-                    item["expected"] = f"{expected_val} <<<<"
-                    separate_results = True
+            data, specific_gate_data, separate_results, failed = simulate_circuit(None, gate, current_sim, config_sim_store, called_from_callback=False, max_mismatches=2)
             
             #Write summary to CSV
             total_combinations += 1
@@ -804,16 +682,6 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
                 minutes = 0
                 seconds = 0
             formatted_time = f"{minutes}:{seconds:02d}"
-
-            def pad_table_data(data, page_size=20):
-                # If there are fewer rows than page size, fill with blanks
-                rows_to_add = page_size - len(data) % page_size
-                if rows_to_add > 0:
-                    blank_row = {col: "" for col in data[0].keys()} if data else {"result": "", "expected": "", "file_id": "", "energy": ""}
-                    data += [blank_row.copy() for _ in range(rows_to_add)]
-                return data
-            
-            data = pad_table_data(data, page_size=20)
 
             # Save results just like the save_current function
             gate_name = gate.name if gate.name else f"unnamed_gate{str(combo)}"
