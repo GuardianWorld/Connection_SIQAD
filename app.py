@@ -43,8 +43,6 @@ app.layout = html.Div([
                 options=[
                     {'label': 'First in First out', 'value': 'FIFO'},
                     {'label': 'Corner Connection', 'value': 'CORNER'},
-                    {'label': 'bottom-up', 'value': 'BOTTOMUP'},
-                    {'label': '"Balanced"', 'value': 'BALANCED'},
                 ],
                 multi=False, value='FIFO',
                 style={'width': '100%', 'gap': '10px'}

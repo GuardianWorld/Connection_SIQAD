@@ -55,10 +55,10 @@ def get_files(directory, ending=".sqd"):
 def sqd_template_create(gate, prefix="", mode="save", parameters=None, sim_params_template=None):
     date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    if(sim_params_template is None):
+    if(sim_params_template is None and mode=="simulate"):
         print("No sim params template provided, please provide them on the folder [See Simanneal as an example]")
         return "Error", ""
-    if(parameters is None):
+    if(parameters is None or len(parameters) == 0) and mode=="simulate":
         print("No parameters provided, using default values")
     
     #Edit template with the parameters like XML

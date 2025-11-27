@@ -45,6 +45,7 @@ class Gate:
         self.output_dot = output_dot
         self.input_symbols = symbols
         self.expression = expression  # Store the logical expression
+        self.gate_metadata = []
 
     def __repr__(self):
         return (f"Gate(db_dots={self.db_dots}, pivot_dot={self.pivot_dot}, "

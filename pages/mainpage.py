@@ -114,6 +114,7 @@ layout = html.Div([
     ),
     html.Button("Save as PNG", id='save-button', n_clicks=0, style={'width': '200px', 'height': '35px', 'marginTop': '20px'}),
     html.Button("Auto Batch", id='auto-batch-button', n_clicks=0, style={'width': '200px', 'height': '35px', 'marginTop': '20px'}),
+    html.Button("Save gate", id='save-gate-button', n_clicks=0, style={'width': '200px', 'height': '35px', 'marginTop': '20px'})
 ])
     
 
@@ -171,14 +172,11 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght, algorit
     gate_pos_name = None
     files = selected_gates
     #circuit = gate_connector.connect_n_gates(files, wires=wire_lenght)
-    if(algorithm == "FIFO"):
-        circuit, gate_pos_name = gate_connector.connect_n_gates_fifo(files, wires=wire_lenght)
-    elif(algorithm == "CORNER"):
-        circuit = gate_connector.connect_n_gates(files, wire_lenght)
-    elif(algorithm == "BALANCED"):
-        circuit = gate_connector.connect_n_gates_balanced(files, wire_lenght)
-    elif(algorithm == "BOTTOMUP"):
-        circuit = gate_connector.connect_n_gates_bottom_up(files, wire_lenght)
+    
+    if(algorithm == "CORNER"):
+        circuit = gate_connector.connect_n_gates(files, wires=wire_lenght)
+    else:
+        circuit, gate_pos_name, metadata = gate_connector.connect_n_gates(files, wires=wire_lenght, strategy=algorithm)
     gate = sqd_manipulator.circuit_to_gate(circuit)
         
     viewport = get_viewport(gate)
@@ -768,3 +766,31 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
   
 
     print("✅ Auto batch simulation completed for all gates.")
+
+@callback(
+    Input('save-gate-button', 'n_clicks'),
+    State('gate-storage', 'data'),
+    prevent_initial_call=True   
+)
+
+def save_gate(button, gate):
+    if button is None or button <= 0:
+        return
+
+    if not gate or len(gate) == 0:
+        print("⚠️ No files to select for saving gate.")
+        return
+
+    if(isinstance(gate, dict)):
+        gate = sqd_manipulator.Gate.from_dict(gate)
+
+    gate_name = gate.name if gate.name else "unnamed_gate"
+    save_folder = Path("data") / "saved_gates"
+    save_folder.mkdir(parents=True, exist_ok=True)
+    gate_file_path = save_folder / f"{gate_name}.sqd"
+    with open(gate_file_path, "w") as f:
+        name, template = file_manager.sqd_template_create(gate, prefix=gate_name + "_", mode="save")
+        #print(template)
+        f.write(template)
+    print(f"✅ Gate saved: {gate_file_path}")
+    
