@@ -63,6 +63,22 @@ class Gate:
     def remove_dot(self, dot):
         self.db_dots.remove(dot)
     
+    def add_dot(self, NML = None):
+        if NML is None:
+            return
+        else:
+            N, M, L = NML
+        x, y = calculate_xy(N, M, L)
+        new_dot = DBDot(
+            layer_id=2,
+            latcoord={'n': N, 'm': M, 'l': L},
+            physloc={'x': x, 'y': y},
+            color="#ffc8c8c8"
+        )
+        self.db_dots.append(new_dot)
+        return new_dot
+
+    
     def find_dot(self, n, m, l):
         for dot in self.db_dots:
             if dot.latcoord['n'] == n and dot.latcoord['m'] == m and dot.latcoord['l'] == l:
@@ -97,6 +113,7 @@ class Gate:
             'input_symbols': [s.name for s in self.input_symbols] if self.input_symbols else None,
             'expression': srepr(self.expression) if self.expression else None,
             'name': self.name,
+            'metadata': self.gate_metadata,
         }
     
     @classmethod
@@ -107,10 +124,13 @@ class Gate:
         output_dot = DBDot.from_dict(data['output_dot'])
         symbols_list = [Symbol(name) for name in data['input_symbols']] if data.get('input_symbols') else None
         gate = cls(db_dots, pivot_dot, input_perturbers, output_dot, data.get('name'), symbols=symbols_list)
+        
         if data.get('expression'):
             gate.expression = sympify(data['expression'])
         else:
             gate.expression = None
+
+        gate.gate_metadata = data.get('metadata', [])
 
         return gate
         
@@ -162,3 +182,18 @@ GATE_EXPRESSIONS = {
     "XNOR": lambda inputs: Not(Xor(*inputs)),
     "MAJ": lambda inputs: (inputs[0] & inputs[1]) | (inputs[0] & inputs[2]) | (inputs[1] & inputs[2]),  # 3-input majority
 }
+
+def calculate_xy(N, M, L):
+    x = int(N) * 3.84
+    y = int(M) * 7.68 + (int(L) * 2.25)
+    return x, y
+
+def inverse_xy(X, Y):
+    N = int(round(X / 3.84))
+
+    r = Y % 7.68
+    L = 0 if abs(r) < 1e-9 else 1
+
+    M = int(round((Y - 2.25 * L) / 7.68))
+
+    return N, M, L

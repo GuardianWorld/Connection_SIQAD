@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 import dash_bootstrap_components as dbc
+from source import corrector
 from source import file_manager, sqd_manipulator, gate_connector, StreamCapture, implementation
 from source.plotting import plot_NML, get_top_size, get_bottom_size, get_viewport, viewport_size, plot_XY
 import os
@@ -178,13 +179,16 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght, algorit
     else:
         circuit, gate_pos_name, metadata = gate_connector.connect_n_gates(files, wires=wire_lenght, strategy=algorithm)
     gate = sqd_manipulator.circuit_to_gate(circuit)
+
+    #Store the gate metadata in the gate
+    gate.gate_metadata = metadata
         
     viewport = get_viewport(gate)
     fig = plot_NML(gate, viewport, len(selected_gates), gate_pos_name)
     print(f"Selected gates: {gate_names}, Wire length: {wire_lenght}, {viewport_size(viewport)}")
     print(f"Gate expression: {gate.expression}")
     
-    return fig, gate.to_dict()        
+    return fig, gate.to_dict()
 
 @callback(
     Output('files-store', 'data'),
@@ -241,7 +245,7 @@ def store_selected_gate(button1, button2, button3, selected_gate, stored):
     State('current-sim-store', 'data'),
     State('config-sim-store', 'data')
 )
-def simulate_circuit(n_clicks, gate, current_sim, config_sim, called_from_callback=True, max_mismatches=3):
+def simulate_circuit(n_clicks, gate, current_sim, config_sim, called_from_callback=True, max_mismatches=1):
     if not gate:
         #Create a padded empty table
         blank_row = {"result": "", "expected": "", "file_id": "", "energy": ""}
@@ -270,11 +274,69 @@ def simulate_circuit(n_clicks, gate, current_sim, config_sim, called_from_callba
         sim = sim.replace(".physeng", "")
     elif(os.name == 'nt'):
         sim = sim.replace(".physeng", ".exe")
-
+    applied_corrections = 0
     print(f"Simulator: {sim}, gate: {gate.name}")
+    while(True):
+        Results, specific_gate_data, corrections_needed = simulate_internal(gate, sim, config_sim, expected, max_mismatches=max_mismatches, called_from_callback=called_from_callback)
+        if(corrections_needed):
+            print("⚠️ Corrections needed, applying corrections...")
+            gate = corrector.main_correction(gate, gate.gate_metadata, specific_gate_data)
+            applied_corrections += 1
+        elif not corrections_needed or applied_corrections >= 1:
+            break
 
+    for m in gate.gate_metadata:
+        print(m)
+        print("")
+    #print(implementation.make_table(["Result", gate.name, "Energy"], Results))
 
+    columns = ["Result", "Expected", "File_ID", "Energy"]
 
+    def clean(val):
+        if isinstance(val, (int, float, str, bool)) or val is None:
+            return val
+        return str(val)  # fallback to string
+
+    data = [
+    {
+        "result": clean(row[0]),
+        "expected": "N/A" if row[1] >= len(expected) else clean(expected[row[1]]),
+        "file_id": clean(row[1]),
+        "energy": clean(row[2]),
+    }
+    for row in Results
+    ]
+
+    separate_results = False
+    for item in data:
+        result_val = str(item["result"])
+        #clean result_Val from ["0"] to 0
+        if result_val.startswith('[') and result_val.endswith(']'):
+            result_val = result_val.strip('[]')
+            result_val = result_val.strip().strip("'").strip('"')
+        expected_val = str(item["expected"])
+        
+        if expected_val != "N/A" and result_val != expected_val:
+            item["expected"] = f"{expected_val} 🔴"
+            separate_results = True
+
+    def pad_table_data(data, page_size=20):
+        # If there are fewer rows than page size, fill with blanks
+        rows_to_add = page_size - len(data) % page_size
+        if rows_to_add > 0:
+            blank_row = {col: "" for col in data[0].keys()} if data else {"result": "", "expected": "", "file_id": "", "energy": ""}
+            data += [blank_row.copy() for _ in range(rows_to_add)]
+        return data
+    
+    data = pad_table_data(data, page_size=20)
+
+    if called_from_callback:
+        return data, specific_gate_data
+    else:
+        return data, specific_gate_data, separate_results, False
+
+def simulate_internal(gate, sim, config_sim, expected, max_mismatches=1, called_from_callback=True):
+    corrections_needed = False
     Results = []
     specific_gate_data = []
     gates = sqd_manipulator.combinators(gate)
@@ -328,6 +390,8 @@ def simulate_circuit(n_clicks, gate, current_sim, config_sim, called_from_callba
                     symbol_table, energy = "Error", "Error"
                     Results.append([symbol_table, i, energy])
                     if called_from_callback:
+                        blank_row = {"result": "", "expected": "", "file_id": "", "energy": ""}
+                        data = [blank_row.copy() for _ in range(20)]
                         return data, []
                     else:
                         return [], [], True, True  # Indicate failure
@@ -337,53 +401,9 @@ def simulate_circuit(n_clicks, gate, current_sim, config_sim, called_from_callba
     print("]")    
     if mismatches_found >= max_mismatches:
         print(f"⚠️ Maximum mismatches reached ({max_mismatches}). Stopping further simulations.")
-    #print(implementation.make_table(["Result", gate.name, "Energy"], Results))
+        corrections_needed = True
 
-    columns = ["Result", "Expected", "File_ID", "Energy"]
-
-    def clean(val):
-        if isinstance(val, (int, float, str, bool)) or val is None:
-            return val
-        return str(val)  # fallback to string
-
-    data = [
-    {
-        "result": clean(row[0]),
-        "expected": "N/A" if row[1] >= len(expected) else clean(expected[row[1]]),
-        "file_id": clean(row[1]),
-        "energy": clean(row[2]),
-    }
-    for row in Results
-    ]
-
-    separate_results = False
-    for item in data:
-        result_val = str(item["result"])
-        #clean result_Val from ["0"] to 0
-        if result_val.startswith('[') and result_val.endswith(']'):
-            result_val = result_val.strip('[]')
-            result_val = result_val.strip().strip("'").strip('"')
-        expected_val = str(item["expected"])
-        
-        if expected_val != "N/A" and result_val != expected_val:
-            item["expected"] = f"{expected_val} 🔴"
-            separate_results = True
-
-    def pad_table_data(data, page_size=20):
-        # If there are fewer rows than page size, fill with blanks
-        rows_to_add = page_size - len(data) % page_size
-        if rows_to_add > 0:
-            blank_row = {col: "" for col in data[0].keys()} if data else {"result": "", "expected": "", "file_id": "", "energy": ""}
-            data += [blank_row.copy() for _ in range(rows_to_add)]
-        return data
-    
-    data = pad_table_data(data, page_size=20)
-
-    if called_from_callback:
-        return data, specific_gate_data
-    else:
-        return data, specific_gate_data, separate_results, False
-
+    return Results, specific_gate_data, corrections_needed
 
 @callback(
     Output('gate-slider', 'max'),

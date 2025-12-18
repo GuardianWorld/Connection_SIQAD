@@ -160,23 +160,37 @@ def extract_gate_metadata(gates, depth_map):
     gate_metadata = []
     for g in gates:
         try:
-            center = (g.pivot_dot.latcoord['n'], g.pivot_dot.latcoord['m'])
+            center = (g.pivot_dot.latcoord['n'], g.pivot_dot.latcoord['m'], g.pivot_dot.latcoord['l'])
         except Exception:
             center = (0, 0)
 
         db_positions = []
         for d in getattr(g, 'db_dots', []):
             try:
-                db_positions.append((d.latcoord['n'], d.latcoord['m']))
+                db_positions.append((d.latcoord['n'], d.latcoord['m'], d.latcoord['l']))
             except Exception:
                 continue
 
+        #Inputs and outputs can be derived from input_perturbers and output_dot
+        input_coords = []
+        output_coords = []
+        for inp in g.input_perturbers:
+            try:
+                input_coords.append((inp.latcoord['n'], inp.latcoord['m'], inp.latcoord['l']))
+            except Exception:
+                continue
+        try:
+            output_coords.append((g.output_dot.latcoord['n'], g.output_dot.latcoord['m'], g.output_dot.latcoord['l']))
+        except Exception:
+            output_coords = []
         gate_metadata.append({
             "name": g.name,
             "center": center,
             "db_positions": db_positions,
             "orientation": getattr(g, 'orientation', 0),
-            "depth": depth_map.get(g, 0)
+            "depth": depth_map.get(g, 0),
+            "inputs": input_coords,
+            "output": output_coords,
         })
     return gate_metadata
 
@@ -209,6 +223,8 @@ def connect_fifo_gates(
     Connect gates sequentially in FIFO order, updating both physical layout and logical expressions.
     """
     gate_pos_name = [(circuit.name, circuit.pivot_dot)]
+
+    #Connect all outputs of every single gate
 
     for next_gate in gates[1:]:
         current_perturber, parent_pivot = perturber_queue.pop(0)
@@ -275,9 +291,12 @@ def connect_fifo_gates(
         for p in sqd_manipulator.get_input_perturbers(next_gate.db_dots):
             perturber_queue.append((p, next_gate.pivot_dot))
 
+        #collect output from the top gate just connected
+
     # Finalize expression
     circuit.expression = max(symbol_map.values(), key=lambda v: len(str(v)))
     circuit.input_symbols = [symbol_map[p] for p in circuit.input_perturbers]
+
 
     return circuit, gate_pos_name, symbol_map
 
@@ -301,5 +320,6 @@ def connect_n_gates(files, wires=2, strategy="FIFO"):
         raise ValueError(f"Unknown connection strategy: {strategy}")
         
     gate_metadata = extract_gate_metadata(gates, depth_map)
+    
 
     return circuit, gate_pos_name, gate_metadata
