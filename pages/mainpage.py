@@ -37,9 +37,16 @@ layout = html.Div([
         dcc.Input(
             id='wire-length-input',
             type='number',
-            placeholder='Wire Length (default 1)',
-            value=1,
+            placeholder='Wires',
             min=1,
+            step=1,
+            style={'width': '10%', 'marginRight': '10px', 'marginBottom': '10px', 'height': '35px'}
+        ),
+        dcc.Input(
+            id='fixes-allowed',
+            type='number',
+            placeholder='Fixes',
+            min=0,
             step=1,
             style={'width': '10%', 'marginRight': '10px', 'marginBottom': '10px', 'height': '35px'}
         ),
@@ -153,6 +160,15 @@ def update_wire_length(value):
     return value
 
 @callback(
+    Output('fixes-allowed-store', 'data'),
+    Input('fixes-allowed', 'value')
+)
+def update_fixes_allowed(value):
+    if value is None or value < 0:
+        return 0
+    return value
+
+@callback(
     Output('gate-view-plot', 'figure'),
     Output('gate-storage', 'data'),
     Input('btn-connect', 'n_clicks'),
@@ -243,9 +259,10 @@ def store_selected_gate(button1, button2, button3, selected_gate, stored):
     Input('btn-simulate', 'n_clicks'),
     State('gate-storage', 'data'),
     State('current-sim-store', 'data'),
-    State('config-sim-store', 'data')
+    State('config-sim-store', 'data'),
+    State('fixes-allowed-store', 'data')
 )
-def simulate_circuit(n_clicks, gate, current_sim, config_sim, called_from_callback=True, max_mismatches=1):
+def simulate_circuit(n_clicks, gate, current_sim, config_sim, max_corrections=0, called_from_callback=True, max_mismatches=1):
     if not gate:
         #Create a padded empty table
         blank_row = {"result": "", "expected": "", "file_id": "", "energy": ""}
@@ -278,11 +295,11 @@ def simulate_circuit(n_clicks, gate, current_sim, config_sim, called_from_callba
     print(f"Simulator: {sim}, gate: {gate.name}")
     while(True):
         Results, specific_gate_data, corrections_needed = simulate_internal(gate, sim, config_sim, expected, max_mismatches=max_mismatches, called_from_callback=called_from_callback)
-        if(corrections_needed):
+        if(corrections_needed and applied_corrections < max_corrections):
             print("⚠️ Corrections needed, applying corrections...")
             gate = corrector.main_correction(gate, gate.gate_metadata, specific_gate_data)
             applied_corrections += 1
-        elif not corrections_needed or applied_corrections >= 1:
+        else:
             break
 
     for m in gate.gate_metadata:
@@ -331,8 +348,10 @@ def simulate_circuit(n_clicks, gate, current_sim, config_sim, called_from_callba
     data = pad_table_data(data, page_size=20)
 
     if called_from_callback:
+        print("Simulation completed.")
         return data, specific_gate_data
     else:
+        print("Simulation completed (not from callback).")
         return data, specific_gate_data, separate_results, False
 
 def simulate_internal(gate, sim, config_sim, expected, max_mismatches=1, called_from_callback=True):

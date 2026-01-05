@@ -20,6 +20,7 @@ app.layout = html.Div([
     dcc.Store(id='sim-store'),
     dcc.Store(id='current-sim-store'),
     dcc.Store(id='wire-lenght-store', data=1),
+    dcc.Store(id='fixes-allowed-store', data=0),
     dcc.Store(id='selected-gates-store'),
     dcc.Store(id='truth-table-store'),
     dcc.Store(id='simulated-states-store'),

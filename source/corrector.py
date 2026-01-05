@@ -138,21 +138,9 @@ def AND_correction(gate, metadata, found_inputs, simulation_data, tt_index, expe
 
     
 
-    def situation_double_activation(gate, metadata, found_inputs):
-        #We could check if DBs in an aproximate area near the position of the inputs are double activated
+    def situation_1(gate, metadata, found_inputs):
         pass
-    def situation_no_trigger(gate, metadata, found_inputs, gate_boundaries):
-        #We could check if Inputs are not activating the gate at all, that is easier to check, since if its 1-1 -> 0, we know it didn't trigger
-        # For this fix, check if there are ANY DBs on top of the gate boundaries, if there isn't, we can add stabilizers
-        print(gate_boundaries)
-     
-
-                
-
-                
-
-        pass
-    def situation_overtrigger(gate, metadata, found_inputs):
+    def situation_2(gate, metadata, found_inputs, gate_boundaries):
         #We could check if the gate is triggering when only one input is active, this is also easier to check
         #print("Gate Boundaries:", gate_boundaries)
         min_x, max_x, min_y, max_y = gate_boundaries
@@ -180,11 +168,10 @@ def AND_correction(gate, metadata, found_inputs, simulation_data, tt_index, expe
 
     #We first, check the situation of the last simulation data, to see what happened
     #print(expected_output, sim_output_value)
-    #if(int(expected_output) == 1 and int(sim_output_value) == 0):
-        #situation_no_trigger(gate, metadata, found_inputs, gate_boundaries)
-    #elif(int(expected_output) == 0 and int(sim_output_value) == 1):
-        #situation_double_activation(gate, metadata, found_inputs)
-    situation_overtrigger(gate, metadata, found_inputs)
+    if(int(expected_output) == 1 and int(sim_output_value) == 0):
+        situation_1(gate, metadata, found_inputs, gate_boundaries)
+    elif(int(expected_output) == 0 and int(sim_output_value) == 1):
+        situation_2(gate, metadata, found_inputs, gate_boundaries)
         #pass
 
     
