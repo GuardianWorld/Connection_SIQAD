@@ -75,7 +75,7 @@ def main_correction(gate, metadata, simulation_data):
         for inp in m.get("inputs"):
             inp_N, inp_M, inp_L = inp
             inp_x, inp_y = classes.calculate_xy(inp_N, inp_M, inp_L)
-            #print("Input Position x: ", inp_x, " Input Position y: ", inp_y)
+            print("Input Position x: ", inp_x, " Input Position y: ", inp_y)
 
             #If they do not exist, we use 0, else, we use the value at that position
             inp_value = 0
@@ -90,8 +90,6 @@ def main_correction(gate, metadata, simulation_data):
         #Now, we find the expected output from the truth table
         tt_index = truth_table_index(input_values)
         expected_output = expected[tt_index]
-        #print("Expected Output from Truth Table: ", expected_output)
-        #print("Simulated Output Value: ", sim_output_value)
             
         #If they do not match, we need to correct the gate
         #Calculate boundaries first, we will need it.
@@ -106,16 +104,25 @@ def main_correction(gate, metadata, simulation_data):
         x, y = classes.calculate_xy(N, M, L)
         gate_boundaries.append((x,y))
         boundaries = calculate_boundaries(gate_boundaries)
-
-        if(expected_output != sim_output_value):
+        print(f"Current Gate: {name[0]}, Expected Output from Truth Table: {expected_output}, Simulated Output: {sim_output_value}")
+        if(int(expected_output) != int(sim_output_value)):
             print("Mismatch detected! Correcting gate...")
-            #Apply correction based on gate type and position
+            #print(f"Current Gate: {name[0]}, Expected Output from Truth Table: {expected_output}, Simulated Output: {sim_output_value}")
+            stabilizers = m.get("stabilizers", [])
+            #print(f"Current stabilizers for gate {name[0]}: {stabilizers}")
+
+            if len(stabilizers) > 0:
+                #print(f"Gate {name[0]} already has stabilizers applied, skipping correction.")
+                continue
+
             if name[0] == "AND":
-                AND_correction(gate, m, found_inputs, simulation_data, tt_index, expected_output, sim_output_value, boundaries)
+                gate = AND_correction(gate, m, found_inputs, simulation_data, tt_index, expected_output, sim_output_value, boundaries)
             elif name[0] == "OR":
-                OR_correction(gate, m)
+                gate = OR_correction(gate, m, found_inputs, simulation_data, tt_index, expected_output, sim_output_value, boundaries)
             else:
                 print(f"No correction function defined for gate type: {name[0]}")
+                continue
+            return gate
         #Compare the expected expression to the gate's expression
 
     return gate
@@ -127,20 +134,8 @@ def calculate_boundaries(positions):
     max_y = max(pos[1] for pos in positions)
     return (min_x, max_x, min_y, max_y)
 
-def AND_correction(gate, metadata, found_inputs, simulation_data, tt_index, expected_output, sim_output_value, gate_boundaries):
-    #Here, we will analyze the gate and apply corrections specific to AND gates
-    #Some situations have been found so far:
-    # Under certain situations, such as AND on top or side, the input can be double activated.
-    # Under certain situations, AND doesn't trigger at all.
-    # Under some situations, AND overtriggers.
-    #We will check each situation
-
-
-    
-
-    def situation_1(gate, metadata, found_inputs):
-        pass
-    def situation_2(gate, metadata, found_inputs, gate_boundaries):
+##List of corrections to be applied
+def up_correction(gate, metadata, found_inputs, gate_boundaries):
         #We could check if the gate is triggering when only one input is active, this is also easier to check
         #print("Gate Boundaries:", gate_boundaries)
         min_x, max_x, min_y, max_y = gate_boundaries
@@ -163,21 +158,39 @@ def AND_correction(gate, metadata, found_inputs, simulation_data, tt_index, expe
             M = metadata.get("inputs")[0][1] - 2
             gate.add_dot(NML=(N, M, L))
             print("Added stabilizer at N:", N, " M:", M, " L:", L)
+            metadata["stabilizers"].append((N, M, L))
             return gate
+        
+def AND_correction(gate, metadata, found_inputs, simulation_data, tt_index, expected_output, sim_output_value, gate_boundaries):
+    #Here, we will analyze the gate and apply corrections specific to AND gates
+    #Some situations have been found so far:
+    # Under certain situations, such as AND on top or side, the input can be double activated.
+    # Under certain situations, AND doesn't trigger at all.
+    # Under some situations, AND overtriggers.
+    #We will check each situation
+
+    print("AND?")
+    if "stabilizers" not in metadata:
+        metadata["stabilizers"] = []  # create the list if it doesn't exist
+
+    def situation_1(gate, metadata, found_inputs):
         pass
-
     #We first, check the situation of the last simulation data, to see what happened
-    #print(expected_output, sim_output_value)
     if(int(expected_output) == 1 and int(sim_output_value) == 0):
-        situation_1(gate, metadata, found_inputs, gate_boundaries)
+        return up_correction(gate, metadata, found_inputs, gate_boundaries) #Temporary
     elif(int(expected_output) == 0 and int(sim_output_value) == 1):
-        situation_2(gate, metadata, found_inputs, gate_boundaries)
-        #pass
+        return up_correction(gate, metadata, found_inputs, gate_boundaries)
 
     
     
 
-def OR_correction(gate, metadata):
-    
-    print("hello world")
+def OR_correction(gate, metadata, found_inputs, simulation_data, tt_index, expected_output, sim_output_value, gate_boundaries):
+    #Or gate issues:
+    # - Overtriggering when 0 inputs
+    # - Not triggering when 1 input
+    print("OR?")
+    if "stabilizers" not in metadata:
+        metadata["stabilizers"] = []  # create the list if it doesn't exist
+
+    return up_correction(gate, metadata, found_inputs, gate_boundaries)
 

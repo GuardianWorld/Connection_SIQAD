@@ -159,6 +159,7 @@ def circuit_to_gate(circuit):
 # Tester
 
 def combinators(gate):
+    #print(gate.input_perturbers)
     perturbers = gate.input_perturbers
     num_perturbers = len(perturbers)    
     gates = []

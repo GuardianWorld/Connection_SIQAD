@@ -186,6 +186,8 @@ GATE_EXPRESSIONS = {
 def calculate_xy(N, M, L):
     x = int(N) * 3.84
     y = int(M) * 7.68 + (int(L) * 2.25)
+    x = round(x, 2)
+    y = round(y, 2)
     return x, y
 
 def inverse_xy(X, Y):

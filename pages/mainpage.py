@@ -260,9 +260,10 @@ def store_selected_gate(button1, button2, button3, selected_gate, stored):
     State('gate-storage', 'data'),
     State('current-sim-store', 'data'),
     State('config-sim-store', 'data'),
-    State('fixes-allowed-store', 'data')
+    State('fixes-allowed-store', 'data'),
 )
 def simulate_circuit(n_clicks, gate, current_sim, config_sim, max_corrections=0, called_from_callback=True, max_mismatches=1):
+    #print(max_corrections)
     if not gate:
         #Create a padded empty table
         blank_row = {"result": "", "expected": "", "file_id": "", "energy": ""}
@@ -292,6 +293,10 @@ def simulate_circuit(n_clicks, gate, current_sim, config_sim, max_corrections=0,
     elif(os.name == 'nt'):
         sim = sim.replace(".physeng", ".exe")
     applied_corrections = 0
+
+    max_possible_corrections = len(gate.gate_metadata)
+    if(max_corrections > max_possible_corrections):
+        max_corrections = max_possible_corrections
     print(f"Simulator: {sim}, gate: {gate.name}")
     while(True):
         Results, specific_gate_data, corrections_needed = simulate_internal(gate, sim, config_sim, expected, max_mismatches=max_mismatches, called_from_callback=called_from_callback)
@@ -299,12 +304,15 @@ def simulate_circuit(n_clicks, gate, current_sim, config_sim, max_corrections=0,
             print("⚠️ Corrections needed, applying corrections...")
             gate = corrector.main_correction(gate, gate.gate_metadata, specific_gate_data)
             applied_corrections += 1
+        elif(corrections_needed and applied_corrections >= max_corrections):
+            print("⚠️ Maximum corrections applied, stopping further corrections.")
+            break
         else:
             break
 
-    for m in gate.gate_metadata:
-        print(m)
-        print("")
+    #for m in gate.gate_metadata:
+    #    print(m)
+    #    print("")
     #print(implementation.make_table(["Result", gate.name, "Energy"], Results))
 
     columns = ["Result", "Expected", "File_ID", "Energy"]
@@ -384,14 +392,14 @@ def simulate_internal(gate, sim, config_sim, expected, max_mismatches=1, called_
                 file_name, template = file_manager.sqd_template_create(gates[i], prefix=f"combination_{i}_", mode="simulation", sim_params_template=sim_template, parameters=config_sim)
                 file_path = str(data_temp / file_name)
                 file_manager.make_file(file_path, template)
-                
                 result_name = "result_" + file_name
                 #print(">>>>>", result_name)
                 result_path = implementation.call_sim(file_path, result_name, simulator=sim, simmaneal_default_path=simmanneal_default_path)
                 #print("Result path: " + result_path)
+                #print(f"\nReading result for simulation {i} from {result_path}...")
+                #print(gate)
                 symbol_table, energy = sqd_manipulator.read_result(result_path, gate)
                 specific_gate_data.append(sqd_manipulator.read_result_plusXY(result_path, gate))
-
                 Results.append([symbol_table, i, energy])
                 symbol_value = int(symbol_table[0])
                 expected_value = expected[i]
