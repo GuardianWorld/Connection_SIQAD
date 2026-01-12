@@ -155,7 +155,7 @@ def up_correction(gate, metadata, found_inputs, gate_boundaries):
             N, M, L = metadata.get("center")
             L = 0
             #Shift up until after the inputs
-            M = metadata.get("inputs")[0][1] - 2
+            M = metadata.get("original_inputs")[0][1] - 2
             gate.add_dot(NML=(N, M, L))
             print("Added stabilizer at N:", N, " M:", M, " L:", L)
             metadata["stabilizers"].append((N, M, L))

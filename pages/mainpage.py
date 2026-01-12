@@ -603,7 +603,7 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
     wire_length = 1  # Default wire length
     last_num_gates = 1
     all_combos = []
-    for r in range(1, 2):  
+    for r in range(4, 7):  
         all_combos.extend(list(product(files_data, repeat=r)))
 
     def normalize_combo(combo):
@@ -685,11 +685,12 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
 
             # Connect gates using FIFO algorithm
             #print("DEBUG: selected_gates:", selected_gates)
-            circuit, gate_pos_name = gate_connector.connect_n_gates_fifo(selected_gates, wires=wire_length)
+            circuit, gate_pos_name, gate_metadata = gate_connector.connect_n_gates(selected_gates, wires=wire_length)
             gate = sqd_manipulator.circuit_to_gate(circuit)
+            gate.gate_metadata = gate_metadata
 
             # Simulate the gate
-            data, specific_gate_data, separate_results, failed = simulate_circuit(None, gate, current_sim, config_sim_store, called_from_callback=False, max_mismatches=2)
+            data, specific_gate_data, separate_results, failed = simulate_circuit(None, gate, current_sim, config_sim_store,max_corrections=5, called_from_callback=False, max_mismatches=1)
             
             #Write summary to CSV
             total_combinations += 1

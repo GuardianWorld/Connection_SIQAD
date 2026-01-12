@@ -150,7 +150,7 @@ def analyze_gate_depths(gates):
 
     return depth_map, max_depth, gates_per_depth, perturbers_per_depth
 
-def extract_gate_metadata(gates, depth_map):
+def extract_gate_metadata(gates, depth_map, output_input_map):
     """
     Collect spatial and geometric metadata for each gate.
 
@@ -159,6 +159,8 @@ def extract_gate_metadata(gates, depth_map):
     """
     gate_metadata = []
     for g in gates:
+        has_output_as_input = False
+        original_inputs = []
         try:
             center = (g.pivot_dot.latcoord['n'], g.pivot_dot.latcoord['m'], g.pivot_dot.latcoord['l'])
         except Exception:
@@ -177,8 +179,18 @@ def extract_gate_metadata(gates, depth_map):
         for inp in g.input_perturbers:
             try:
                 input_coords.append((inp.latcoord['n'], inp.latcoord['m'], inp.latcoord['l']))
+                original_inputs.append((inp.latcoord['n'], inp.latcoord['m'], inp.latcoord['l']))
+
+                #Check the output_input_map to see if this input is actually an output from another gate
+                for out_dot, in_dot in output_input_map.items():
+                    if inp == in_dot:
+                        #print(f"Gate {g.name} input {inp.latcoord} is connected to output {out_dot.latcoord} of another gate.")
+                        input_coords[-1] = (out_dot.latcoord['n'], out_dot.latcoord['m'], out_dot.latcoord['l'])
+                        has_output_as_input = True
             except Exception:
                 continue
+        
+
         try:
             output_coords.append((g.output_dot.latcoord['n'], g.output_dot.latcoord['m'], g.output_dot.latcoord['l']))
         except Exception:
@@ -191,7 +203,10 @@ def extract_gate_metadata(gates, depth_map):
             "depth": depth_map.get(g, 0),
             "inputs": input_coords,
             "output": output_coords,
+            "has_output_as_input": has_output_as_input,
+            "original_inputs": original_inputs,
         })
+
     return gate_metadata
 
 def initialize_circuit_and_symbols(gates):
@@ -225,7 +240,7 @@ def connect_fifo_gates(
     gate_pos_name = [(circuit.name, circuit.pivot_dot)]
 
     #Connect all outputs of every single gate
-
+    output_input_map = {}
     for next_gate in gates[1:]:
         current_perturber, parent_pivot = perturber_queue.pop(0)
 
@@ -292,13 +307,14 @@ def connect_fifo_gates(
             perturber_queue.append((p, next_gate.pivot_dot))
 
         #collect output from the top gate just connected
+        output_input_map[next_gate.output_dot] = current_perturber
 
     # Finalize expression
     circuit.expression = max(symbol_map.values(), key=lambda v: len(str(v)))
     circuit.input_symbols = [symbol_map[p] for p in circuit.input_perturbers]
 
 
-    return circuit, gate_pos_name, symbol_map
+    return circuit, gate_pos_name, symbol_map, output_input_map
 
 
 def connect_n_gates(files, wires=2, strategy="FIFO"):
@@ -306,7 +322,7 @@ def connect_n_gates(files, wires=2, strategy="FIFO"):
     depth_map, max_depth, gates_per_depth, perturbers_per_depth = analyze_gate_depths(gates)
     circuit, perturber_queue, gate_pos_name, symbol_map, input_counter = initialize_circuit_and_symbols(gates)
     if strategy == "FIFO":
-        circuit, gate_pos_name, symbol_map = connect_fifo_gates(
+        circuit, gate_pos_name, symbol_map, output_input_map = connect_fifo_gates(
             gates,
             circuit,
             symbol_map,
@@ -319,7 +335,7 @@ def connect_n_gates(files, wires=2, strategy="FIFO"):
     else:
         raise ValueError(f"Unknown connection strategy: {strategy}")
         
-    gate_metadata = extract_gate_metadata(gates, depth_map)
+    gate_metadata = extract_gate_metadata(gates, depth_map, output_input_map)
     
 
     return circuit, gate_pos_name, gate_metadata
