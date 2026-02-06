@@ -1,12 +1,12 @@
 tabulate
-dash
+dash==3.3.0
+dash-bootstrap-components==1.6.0
+dash-table==5.0.0
+plotly==5.18.0
 pandas
 numpy
-plotly
 umap-learn
 matplotlib
-dash_bootstrap_components
-dash_table
 spicy
 pathlib
 sympy
