@@ -3,6 +3,7 @@ from source.classes import GATE_EXPRESSIONS, DBDot, Gate, Circuit
 from source import sqd_manipulator
 from sympy import symbols
 from source import classes
+from itertools import combinations
 
 
 def connect_2_gates(gate1, gate2, wire=None, wires=0, direction="left"):
@@ -90,6 +91,20 @@ def connect_3_gates(gate1, gate2, gate3, wires=2):
     circuit = Circuit([gate1, gate2, gate3], input_perturbers, circuit1.pivot_dot)
     
     return circuit 
+
+def calculate_boundaries(positions):
+    min_x = min(pos[0] for pos in positions) - 3
+    max_x = max(pos[0] for pos in positions) + 3
+    min_y = min(pos[1] for pos in positions)
+    max_y = max(pos[1] for pos in positions) 
+    return (min_x, max_x, min_y, max_y)
+
+def rectangles_overlap(r1, r2):
+    a1, a2, b1, b2 = r1
+    a3, a4, b3, b4 = r2
+    return not (
+        a2 < a3 or a1 > a4 or b2 < b3 or b1 > b4
+    )
 
 def calculate_max_depth(gates):
     depth = 1
@@ -238,11 +253,14 @@ def connect_fifo_gates(
     Connect gates sequentially in FIFO order, updating both physical layout and logical expressions.
     """
     gate_pos_name = [(circuit.name, circuit.pivot_dot)]
-
+    boundary_list = []
     #Connect all outputs of every single gate
     output_input_map = {}
     for next_gate in gates[1:]:
         current_perturber, parent_pivot = perturber_queue.pop(0)
+        if(next_gate.name == "BUFFER"):
+            #Buffers do not need to be connected physically or logically.
+            continue
 
         # --- PHYSICAL CONNECTION ---
         gate_depth = depth_map[next_gate]
@@ -309,20 +327,28 @@ def connect_fifo_gates(
         #collect output from the top gate just connected
         output_input_map[next_gate.output_dot] = current_perturber
 
+        # --- BOUNDARY CALCULATION ---
+        gate_positions = [(d.latcoord["n"], d.latcoord["m"]) for d in next_gate.db_dots]
+        boundary_list.append(calculate_boundaries(gate_positions))
+
+                 
+
     # Finalize expression
     circuit.expression = max(symbol_map.values(), key=lambda v: len(str(v)))
     circuit.input_symbols = [symbol_map[p] for p in circuit.input_perturbers]
 
 
-    return circuit, gate_pos_name, symbol_map, output_input_map
+    return circuit, gate_pos_name, symbol_map, output_input_map, boundary_list
 
 
 def connect_n_gates(files, wires=2, strategy="FIFO"):
     gates = [sqd_manipulator.main_operator(file) for file in files]
     depth_map, max_depth, gates_per_depth, perturbers_per_depth = analyze_gate_depths(gates)
+    overlaps = False
+
     circuit, perturber_queue, gate_pos_name, symbol_map, input_counter = initialize_circuit_and_symbols(gates)
     if strategy == "FIFO":
-        circuit, gate_pos_name, symbol_map, output_input_map = connect_fifo_gates(
+        circuit, gate_pos_name, symbol_map, output_input_map, boundary_list = connect_fifo_gates(
             gates,
             circuit,
             symbol_map,
@@ -334,8 +360,14 @@ def connect_n_gates(files, wires=2, strategy="FIFO"):
         )
     else:
         raise ValueError(f"Unknown connection strategy: {strategy}")
-        
+
     gate_metadata = extract_gate_metadata(gates, depth_map, output_input_map)
     
+    # After connecting, check for boundary overlaps and adjust wires if necessary
+    for r1, r2 in combinations(boundary_list, 2):
+        if rectangles_overlap(r1, r2):
+            overlaps = True
+            break
 
-    return circuit, gate_pos_name, gate_metadata
+
+    return circuit, gate_pos_name, gate_metadata, overlaps

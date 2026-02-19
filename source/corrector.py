@@ -26,90 +26,89 @@ def downstream_metadata_entry(metadata, current_metadata, simulation_data):
     #The logic is the following:
     # We grab the Output of the current one (it should match with the input of another one)
     output_positions = current_metadata.get("output")
+    metadata_collection = []
     for m in metadata:
         input_positions = m.get("inputs")
         for out in output_positions:
             for inp in input_positions:
-                    print("Checking input:", inp, " against output position:", out)
+                    #print("Checking input:", inp, " against output position:", out)
                     if inp == out:
                         print("Match found for downstream metadata entry.")
-                        return m
+                        #We check if this metadata entry already has stabilizers, if it does, we skip it, otherwise, we add it to the collection of metadata to be corrected.
+                        if len(m.get("stabilizers", [])) > 0:
+                            print(f"Gate {m.get('name')} already has stabilizers applied, skipping correction.")
+                            continue
+                        metadata_collection.append(m)
                         
     
-    return None
+    return metadata_collection
 
 def check_wires(metadata, current_metadata, simulation_data):
     current_index = metadata.index(current_metadata)
-    input_positions = current_metadata.get("inputs")
-    print("Checking wires for metadata at index:", current_index)
-    print(input_positions)
-    selection = []
+
+    
+    #We need to select based on the inputs
+    #First, we check which of the TOP inputs mismatch with the logic inputs (original_inputs)
     mismatched_inputs = []
-    for m in metadata: 
-        output_position = m.get("output")
-        if output_position in input_positions:
-            selection.append(m)
-    
-    print("Upstream selection size:", len(selection))
-    if len(selection) == 1:
-        return selection[0]
-    if len(selection) > 1:
-        #We need to select based on the inputs
-        #First, we check which of the TOP inputs mismatch with the logic inputs (original_inputs)
-        mismatched_inputs = []
-        original_inputs = current_metadata.get("original_inputs", [])
-        real_inputs = current_metadata.get("inputs", [])
-        #Now, we have both, we need to check if the input on the left, is the same as the ORIGINAL input on the right, and the same for the right input
-        print("Original Inputs:", original_inputs)
-        print("Real Inputs:", real_inputs)
-        for inp, index in real_inputs.items():
-            print("Checking input:", inp, " at index:", index)
-            if original_inputs[index] == inp:
-                print("Input matches original input.")
-                #This means this input is the SAME as the logic input, no wires, we skip
-                continue
-            else:
-                #Now, we check the values of both inputs
-                #First, we calculate the X,Y of the inputs
-                inp_N, inp_M, inp_L = inp
-                inp_x, inp_y = classes.calculate_xy(inp_N, inp_M, inp_L)
-                log_N, log_M, log_L = original_inputs[index]
-                log_x, log_y = classes.calculate_xy(log_N, log_M, log_L)
+    original_inputs = current_metadata.get("original_inputs", [])
+    real_inputs = current_metadata.get("inputs", [])
+    #Now, we have both, we need to check if the input on the left, is the same as the ORIGINAL input on the right, and the same for the right input
+    print("Original Inputs:", original_inputs)
+    print("Real Inputs:", real_inputs)
+    index = 0
+    for inp in real_inputs:
+        print("Checking input:", inp, " at index:", index)
+        if original_inputs[index] == inp:
+            print("Input matches original input.")
+            #This means this input is the SAME as the logic input, no wires, we skip
+            continue
+        else:
+            #Now, we check the values of both inputs
+            #First, we calculate the X,Y of the inputs
+            inp_N, inp_M, inp_L = inp
+            inp_x, inp_y = classes.calculate_xy(inp_N, inp_M, inp_L)
+            log_N, log_M, log_L = original_inputs[index]
+            log_x, log_y = classes.calculate_xy(log_N, log_M, log_L)
 
-                print("Input X,Y:", inp_x, inp_y)
-                print("Logic Input X,Y:", log_x, log_y)
-                #Now, we check the simulation data to see if they are matching
-                inp_value = 0
-                log_value = 0
-                for data in simulation_data[0]:
-                    if(data[0] == inp_x and data[1] == inp_y):
-                        inp_value = data[2]
-                    if(data[0] == log_x and data[1] == log_y):
-                        log_value = data[2]
-                
-                print("Input Value:", inp_value)
-                print("Logic Input Value:", log_value)
-                if inp_value != log_value:
-                    print("Input value mismatches logic input value.")
-                    mismatched_inputs.append(inp)
-                    #We know this input is mismatched, which means, this upstream gate or wire is the one causing the issue
-    return mismatched_inputs, selection
+            print("Input X,Y:", inp_x, inp_y)
+            print("Logic Input X,Y:", log_x, log_y)
+            #Now, we check the simulation data to see if they are matching
+            inp_value = 0
+            log_value = 0
+            for data in simulation_data[0]:
+                if(data[0] == inp_x and data[1] == inp_y):
+                    inp_value = data[2]
+                if(data[0] == log_x and data[1] == log_y):
+                    log_value = data[2]
+            
+            print("Input Value:", inp_value)
+            print("Logic Input Value:", log_value)
+            if inp_value != log_value:
+                print("Input value mismatches logic input value.")
+                mismatched_inputs.append(inp)
+                #We know this input is mismatched, which means, this upstream gate or wire is the one causing the issue7
+        index += 1
+    return mismatched_inputs
 
-def upstream_metadata_entry(metadata, current_metadata, simulation_data):
+def upstream_metadata_entry(metadata, mismatched_inputs):
     #The logic is the following:
-    # We grab the input of the current one (it should match with the output of the upstream one)
+    # We grab the mismatched input, and we return the M that has that output.
                     
-    return None
-    
+    metadata_collection = []
+    for m in metadata:
+        output_positions = m.get("output")
+        for out in output_positions:
+            for inp in mismatched_inputs:
+                    #print("Checking mismatched input:", inp, " against output position:", out)
+                    if inp == out:
+                        print("Match found for upstream metadata entry.")
+                        #We check if this metadata entry already has stabilizers, if it does, we skip it, otherwise, we add it to the collection of metadata to be corrected.
+                        if len(m.get("stabilizers", [])) > 0:
+                            print(f"Gate {m.get('name')} already has stabilizers applied, skipping correction.")
+                            continue
+                        metadata_collection.append(m)
 
-    #Now, we grab any mismatched input's upstream metadata and return it
-    for inp in mismatched_inputs:
-        for m in selection:
-            output_position = m.get("output")
-            if output_position == inp:
-                return m
-                
-    return None
+    return metadata_collection
 
 
 def main_correction(gate, metadata, simulation_data):
@@ -196,68 +195,72 @@ def main_correction(gate, metadata, simulation_data):
         boundaries = calculate_boundaries(gate_boundaries)
         print(f"Current Gate: {name[0]}, Expected Output from Truth Table: {expected_output}, Simulated Output: {sim_output_value}")
         if(int(expected_output) != int(sim_output_value)):
+            metadata_collection = []
             print("Mismatch detected! Correcting gate...")
 
             #First step, check if any wires are mismatched upstream
-            mismatched_inputs, selection = check_wires(metadata, m, simulation_data)
-            print("Mismatched Inputs from Wires:", mismatched_inputs)
+            mismatched_inputs = check_wires(metadata, m, simulation_data)
+            #print("Mismatched Inputs from Wires:", mismatched_inputs)
             if len(mismatched_inputs) > 0:
-                print("Mismatched wires detected, skipping gate correction.")
-                return gate #For now, we skip correction if wires are mismatched
+                #Multiple mismatched means we have to run correction on multiple gates.
+                print("Mismatched wires detected.")
+                metadata_collection = upstream_metadata_entry(metadata, mismatched_inputs)
+            # now, we check if there is already stabilziers, if there are, we need to propagate the correction downstream
 
-            #print(f"Current Gate: {name[0]}, Expected Output from Truth Table: {expected_output}, Simulated Output: {sim_output_value}")
-            stabilizers = m.get("stabilizers", [])
-            #print(f"Current stabilizers for gate {name[0]}: {stabilizers}")
-
-            if len(stabilizers) > 0:
+            if len(m.get("stabilizers", [])) > 0 and len(metadata_collection) == 0:
                 print(f"Gate {name[0]} already has stabilizers applied, propagating correction.")
-                #In this case we need to check two things:
                 # If it is sending 1, when it should be 0, we need to add stabilizers downstream;
-                # If it is sending 0, when it should be 1, we need to add stabilizers upstream.
-                
-                if int(expected_output) == 1 and int(sim_output_value) == 0:
-                    print("Applying upstream correction...")
-                    #Need to get M for the NEXT metadata entry on the top of it... which is hard.
-                    m = upstream_metadata_entry(metadata, m)
-                    
-                elif int(expected_output) == 0 and int(sim_output_value) == 1:
+                if int(expected_output) == 0 and int(sim_output_value) == 1:
                     #downstream correction
                     print("Applying downstream correction...")
-                    m = downstream_metadata_entry(metadata, m, simulation_data) #Need to get M for the PREVIOUS metadata entry below it, for now, we will keep it simple
-                name = m.get("name")
-                name = classes.extract_gates_from_name(name)
-                gate_boundaries = []
-                for pos in m.get("inputs"):
-                    N, M, L = pos
-                    x, y = classes.calculate_xy(N, M, L)
-                    gate_boundaries.append((x,y))
-                
-                #Get the pivot
-                N, M, L = m.get("center")
-                x, y = classes.calculate_xy(N, M, L)
-                gate_boundaries.append((x,y))
-                boundaries = calculate_boundaries(gate_boundaries)
-                expected_output = 2 #Dummy value
-                sim_output_value = 2 #Dummy value
-            
-            stabilizers = m.get("stabilizers", [])
-            if len(stabilizers) > 0:
-                continue #Skip if stabilizers already exist
+                    metadata_collection = downstream_metadata_entry(metadata, m, simulation_data) #Need to get M for the PREVIOUS metadata entry below it, for now, we will keep it simple
 
-
-
-            if name[0] == "AND":
-                gate = AND_correction(gate, m, expected_output, sim_output_value, boundaries)
-            elif name[0] == "OR":
-                gate = OR_correction(gate, m, expected_output, sim_output_value, boundaries)
-            elif name[0] == "NAND":
-                gate = NAND_correction(gate, m, expected_output, sim_output_value, boundaries)
+            if(len(metadata_collection) == 0) and len(m.get("stabilizers", [])) == 0:
+                metadata_collection.append(m) #If there are no mismatched wires, and no stabilizers, we just correct this gate, otherwise, we correct the collection of gates that we have found.
+            print("Number of expected corrections to be applied:", len(metadata_collection))
+            if len(metadata_collection) == 0:
+                continue # It means that the gate was already corrected, but we could not fix anything, so, we allow the algorithm to continue
             else:
-                print(f"No correction function defined for gate type: {name[0]}")
-                continue
-            return gate
+                for m in metadata_collection:
+                    gate = correction_function(gate, m, expected_output, sim_output_value, boundaries)
+
+            return gate, False
         #Compare the expected expression to the gate's expression
 
+    return gate, True # It means that we already reached max correction.
+
+def correction_function(gate, m, expected_output, sim_output_value, boundaries):
+    name = m.get("name")
+    name = classes.extract_gates_from_name(name)
+    gate_boundaries = []
+    for pos in m.get("inputs"):
+        N, M, L = pos
+        x, y = classes.calculate_xy(N, M, L)
+        gate_boundaries.append((x,y))
+    
+    #Get the pivot
+    N, M, L = m.get("center")
+    x, y = classes.calculate_xy(N, M, L)
+    gate_boundaries.append((x,y))
+    boundaries = calculate_boundaries(gate_boundaries)
+    expected_output = 2 #Dummy value
+    sim_output_value = 2 #Dummy value
+        
+    
+    stabilizers = m.get("stabilizers", [])
+    if len(stabilizers) > 0:
+        print(f"Gate {name[0]} already has stabilizers applied, skipping correction.")
+        return gate
+
+    if name[0] == "AND":
+        gate = AND_correction(gate, m, expected_output, sim_output_value, boundaries)
+    elif name[0] == "OR":
+        gate = OR_correction(gate, m, expected_output, sim_output_value, boundaries)
+    elif name[0] == "NAND":
+        gate = NAND_correction(gate, m, expected_output, sim_output_value, boundaries)
+    else:
+        print(f"No correction function defined for gate type: {name[0]}")
+        return gate # Skip correction for undefined gate types
     return gate
 
 def calculate_boundaries(positions):
@@ -301,17 +304,12 @@ def AND_correction(gate, metadata, expected_output, sim_output_value, gate_bound
     # Under certain situations, AND doesn't trigger at all.
     # Under some situations, AND overtriggers.
     #We will check each situation
-
+    print(gate.name)
     if "stabilizers" not in metadata:
         metadata["stabilizers"] = []  # create the list if it doesn't exist
 
-    def situation_1(gate, metadata, found_inputs):
-        pass
     #We first, check the situation of the last simulation data, to see what happened
-    if(int(expected_output) == 1 and int(sim_output_value) == 0):
-        return up_correction(gate, metadata, gate_boundaries) #Temporary
-    elif(int(expected_output) == 0 and int(sim_output_value) == 1):
-        return up_correction(gate, metadata, gate_boundaries)
+    return up_correction(gate, metadata, gate_boundaries) #Temporary
 
     
     

@@ -183,17 +183,25 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght, algorit
     if not selected_gates or not files_data:
         return placeholder_fig, None
     fig = placeholder_fig
-    
+    original_wire_lenght = wire_lenght
     #Print JUST the names
     gate_names = [os.path.basename(gate) for gate in selected_gates]
     gate_pos_name = None
     files = selected_gates
-    #circuit = gate_connector.connect_n_gates(files, wires=wire_lenght)
     
     if(algorithm == "CORNER"):
         circuit = gate_connector.connect_n_gates(files, wires=wire_lenght)
     else:
-        circuit, gate_pos_name, metadata = gate_connector.connect_n_gates(files, wires=wire_lenght, strategy=algorithm)
+        overlap_try = 0
+        while(True):
+            circuit, gate_pos_name, metadata, overlaps = gate_connector.connect_n_gates(files, wires=wire_lenght, strategy=algorithm)
+            overlap_try += 1
+            if overlap_try == len(selected_gates) * 3:
+                print(f"⚠️ Maximum attempts to stop overlapping done... Resetting wire lenght. Current Gate might not be supported on this architecture.")
+                wire_lenght = original_wire_lenght
+            if not overlaps or overlap_try > len(selected_gates) * 3:
+                break
+            wire_lenght += 1
     gate = sqd_manipulator.circuit_to_gate(circuit)
 
     #Store the gate metadata in the gate
@@ -302,8 +310,11 @@ def simulate_circuit(n_clicks, gate, current_sim, config_sim, max_corrections=0,
         Results, specific_gate_data, corrections_needed = simulate_internal(gate, sim, config_sim, expected, max_mismatches=max_mismatches, called_from_callback=called_from_callback)
         if(corrections_needed and applied_corrections < max_corrections):
             print("⚠️ Corrections needed, applying corrections...")
-            gate = corrector.main_correction(gate, gate.gate_metadata, specific_gate_data)
+            gate, max_stabilized = corrector.main_correction(gate, gate.gate_metadata, specific_gate_data)
             applied_corrections += 1
+            if max_stabilized:
+                print("⚠️ Maximum current stabilization achieved, stopping further corrections.")
+                break
         elif(corrections_needed and applied_corrections >= max_corrections):
             print("⚠️ Maximum corrections applied, stopping further corrections.")
             break
