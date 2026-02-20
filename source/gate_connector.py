@@ -257,9 +257,14 @@ def connect_fifo_gates(
     #Connect all outputs of every single gate
     output_input_map = {}
     for next_gate in gates[1:]:
-        current_perturber, parent_pivot = perturber_queue.pop(0)
-        if(next_gate.name == "BUFFER"):
-            #Buffers do not need to be connected physically or logically.
+        try:
+            current_perturber, parent_pivot = perturber_queue.pop(0)
+        except IndexError:
+            print(f"Error: No more perturbers available to connect gate {next_gate.name}. Check the gate order and connections.")
+            return circuit, gate_pos_name, symbol_map, output_input_map, boundary_list
+
+        if(next_gate.name == "INPUT"):
+            #INPUT leafs do not need to be connected physically or logically.
             continue
 
         # --- PHYSICAL CONNECTION ---

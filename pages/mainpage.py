@@ -1,6 +1,8 @@
 import csv
+import json
 import dash
 from dash import clientside_callback, html, dcc, callback, Input, Output, State, dash_table
+from importlib_metadata import files
 import matplotlib
 from matplotlib import pyplot as plt
 import plotly.express as px
@@ -189,6 +191,10 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght, algorit
     gate_pos_name = None
     files = selected_gates
     
+    if not is_valid_combo(files):
+        print("⚠️ Invalid gate combination selected.")
+        return placeholder_fig, None
+
     if(algorithm == "CORNER"):
         circuit = gate_connector.connect_n_gates(files, wires=wire_lenght)
     else:
@@ -370,7 +376,7 @@ def simulate_circuit(n_clicks, gate, current_sim, config_sim, max_corrections=0,
         print("Simulation completed.")
         return data, specific_gate_data
     else:
-        print("Simulation completed (not from callback).")
+        #print("Simulation completed (not from callback).")
         return data, specific_gate_data, separate_results, False
 
 def simulate_internal(gate, sim, config_sim, expected, max_mismatches=1, called_from_callback=True):
@@ -597,7 +603,6 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
     import csv
     from datetime import datetime
 
-
     if n_clicks is None or n_clicks <= 0:
         return
 
@@ -607,6 +612,19 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
 
     print("Starting auto batch simulation for all gates...")
 
+    gate_unique_expressions = {}
+    expressions_file = Path("data/auto_batch_results") / "saved_expressions.json"
+
+    if os.path.exists(expressions_file):
+        with open(expressions_file, "r") as f:
+            saved = json.load(f)
+            # Convert strings back to SymPy expressions if necessary
+            from sympy import sympify
+            gate_unique_expressions = {sympify(k): True for k in saved.keys()}
+        print(f"✅ Reloaded {len(gate_unique_expressions)} saved unique expressions")
+    else:
+        print("No saved expressions found. Starting fresh.")
+
     #Prepare CSV
     summary_csv_path = Path("data/auto_batch_results") / "summary.csv"
     summary_csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -614,7 +632,7 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
     wire_length = 1  # Default wire length
     last_num_gates = 1
     all_combos = []
-    for r in range(4, 7):  
+    for r in range(1, 6):  
         all_combos.extend(list(product(files_data, repeat=r)))
 
     def normalize_combo(combo):
@@ -623,7 +641,11 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
     
     seen = set()
     unique_combos = []
+
     for combo in all_combos:
+        if not is_valid_combo(combo):
+            continue
+    
         norm = normalize_combo(combo)
         if norm not in seen:
             seen.add(norm)
@@ -640,7 +662,8 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
     current_group = 0
 
     #all_combos = single_gates + two_gate_combos + three_gate_combos + four_gate_combos + five_gate_combos
-    print(f"Total combinations to simulate: {len(unique_combos)}")
+    print(f"Approximate Total combinations to simulate: {len(unique_combos)}")
+    print("Note: The actual number may be vastly lower due to invalid combinations or logical duplicates being skipped.")
 
     file_exists = summary_csv_path.exists()
     with open(summary_csv_path, mode='a', newline='') as csv_file:
@@ -676,8 +699,9 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
         #Time storage for calculations
         avg_time = 0
         expected_runtime = 0
-
+        original_wire_length = wire_length
         for combo in unique_combos:  
+            wire_length = original_wire_length
             if(len(combo) != last_num_gates):
                 print(f"❗ Now processing {len(combo)}-gate combinations ❗")
                 csv_file.flush()
@@ -696,9 +720,29 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
 
             # Connect gates using FIFO algorithm
             #print("DEBUG: selected_gates:", selected_gates)
-            circuit, gate_pos_name, gate_metadata = gate_connector.connect_n_gates(selected_gates, wires=wire_length)
+            original_wire_length = wire_length
+            overlap_try = 0
+            while(True):
+                circuit, gate_pos_name, gate_metadata,overlaps = gate_connector.connect_n_gates(selected_gates, wires=wire_length)
+                overlap_try += 1
+                if overlap_try == len(selected_gates) * 3:
+                    print(f"⚠️ Maximum attempts to stop overlapping done... Resetting wire length. Current Gate might not be supported on this architecture.")
+                    wire_length = original_wire_length
+                if not overlaps or overlap_try > len(selected_gates) * 3:
+                    break
+                wire_length += 1
+
+
+            
             gate = sqd_manipulator.circuit_to_gate(circuit)
             gate.gate_metadata = gate_metadata
+
+            #Prum the gates that have the SAME expression;
+            if gate.expression in gate_unique_expressions:
+                print(f"⚠️ Duplicate expression found, skipping simulation for {[os.path.basename(g) for g in selected_gates]}. Expression: {gate.expression}")
+                continue
+            
+            gate_unique_expressions[gate.expression] = True
 
             # Simulate the gate
             data, specific_gate_data, separate_results, failed = simulate_circuit(None, gate, current_sim, config_sim_store,max_corrections=5, called_from_callback=False, max_mismatches=1)
@@ -710,20 +754,24 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
 
             end_time = time.time()
             runtime_s = end_time - starting_time
+            num_real_gates = sum(1 for g in selected_gates if os.path.basename(g) != "INPUT.sqd")
             csv_row = {
                 'RowType': 'DATA' if not failed else 'ERROR',
                 'Combination': "_".join([os.path.basename(g) for g in selected_gates]),
                 'Expression': str(gate.expression) if not failed else "N/A",
-                'Num_Gates': len(selected_gates),
+                'Num_Gates': num_real_gates,
                 'Mismatch': 'TRUE' if separate_results else 'FALSE',
                 'Timestamp': datetime.now().isoformat(),
                 'Runtime_s': f"{runtime_s:.2f}"
             }
 
 
-
             csv_writer.writerow(csv_row)
             csv_file.flush()
+
+            with open(expressions_file, "w") as f:
+                # Dump the current state of gate_unique_expressions
+                json.dump({str(k): True for k in gate_unique_expressions.keys()}, f)
 
             #Time calculations
             if avg_time == 0:
@@ -812,7 +860,7 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
             time_to_sleep = min(time_to_sleep, 4.0)
             time.sleep(time_to_sleep)  # Sleep to avoid overloading the simulator
             final_runtime = time.time() - starting_time
-            print(f"⏲ Runtime: {final_runtime:<.2f}s, Estimated time remaining for group: {formatted_time}")
+            print(f"⏲ Runtime: {final_runtime:<.2f}s")
             
 
 
@@ -853,3 +901,26 @@ def save_gate(button, gate):
         f.write(template)
     print(f"✅ Gate saved: {gate_file_path}")
     
+def is_valid_combo(combo):
+    INPUT_NAME = "INPUT.sqd"
+    names = [os.path.basename(g) for g in combo]
+
+    # 1) Cannot start with INPUT
+    if INPUT_NAME in names[0]:
+        return False
+
+    # 2) We need to analyse the gates names one by one. For each gate after the first one for now, we add 2 to inputs, and subtract one from the available inputs. If at any point we get 0 available inputs and we still have gates to process, it means the combination is not valid. This is a very rough approximation but it works decently for small combinations and filters out a lot of invalid ones.
+    available_slots = 1 # Root has one Available slot;
+    for name in names:
+        if available_slots <= 0:
+            return False
+
+        # consume one open slot (we are filling a parent slot)
+        available_slots -= 1
+
+        if name != INPUT_NAME:
+            # INPUT are leaf nodes, they don't open new slots
+            available_slots += 2
+
+
+    return True

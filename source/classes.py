@@ -47,6 +47,12 @@ class Gate:
         self.expression = expression  # Store the logical expression
         self.gate_metadata = []
 
+        #Enforcement:
+        if output_dot is None and input_perturbers:
+            self.output_dot = input_perturbers[0]  # Default to first input perturber if output_dot is None
+        else:
+            self.output_dot = output_dot
+
     def __repr__(self):
         return (f"Gate(db_dots={self.db_dots}, pivot_dot={self.pivot_dot}, "
                 f"input_perturbers={self.input_perturbers})")
@@ -173,6 +179,7 @@ def extract_gates_from_name(name):
     return gates
 
 GATE_EXPRESSIONS = {
+    "INPUT": lambda inputs: inputs[0],        # single input, output is the same as input
     "AND": lambda inputs: And(*inputs),            # inputs: list of sympy symbols
     "OR": lambda inputs: Or(*inputs),
     "NAND": lambda inputs: Not(And(*inputs)),

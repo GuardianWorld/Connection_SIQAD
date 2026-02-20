@@ -126,6 +126,8 @@ def main_correction(gate, metadata, simulation_data):
         # expected behavior
         #grab name
         name = m.get("name")
+        if name == "INPUT":
+            continue # We skip input, as they are not logic gates, and they do not affect the logic of the circuit, only the connection, which is not our focus for now.
         name = classes.extract_gates_from_name(name)
 
         #Make the INPUT symbols. Gotta generate them from scratch
