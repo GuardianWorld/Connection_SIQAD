@@ -266,7 +266,7 @@ def connect_fifo_gates(
         if(next_gate.name == "INPUT"):
             #INPUT leafs do not need to be connected physically or logically.
             continue
-
+        
         # --- PHYSICAL CONNECTION ---
         gate_depth = depth_map[next_gate]
         current_wire = max(1, wires * (max_depth - gate_depth + 1))
@@ -319,7 +319,7 @@ def connect_fifo_gates(
         # Merge gates
         circuit = Circuit(
             [circuit, next_gate] if isinstance(circuit, Gate) else circuit.gates + [next_gate],
-            input_perturbers=[p for p, _ in perturber_queue] + sqd_manipulator.get_input_perturbers(next_gate.db_dots),
+            input_perturbers=[p for p in circuit.input_perturbers if p != current_perturber] + next_gate.input_perturbers,
             pivot_dot=circuit.pivot_dot,
         )
 
