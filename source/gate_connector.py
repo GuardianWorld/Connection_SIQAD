@@ -120,6 +120,8 @@ def calculate_max_depth(gates):
     gates_per_depth_aux = 0
 
     for gate in gates[1:]:
+        if(gate.name == "INPUT"):
+            continue
         #On the first gate, grab its perturbers
         #On the next gates, subtract one perturber (the one being used to connect) and add the new perturbers on an aux list (next layer).
         # If the perturbers remaining is 0, increase depth and set the perturbers remaining to the aux list length.
@@ -162,7 +164,7 @@ def analyze_gate_depths(gates):
                 queue.append((depth + 1, gates[idx]))
                 idx += 1
     max_depth = max(depth_map.values())
-
+    print(gates_per_depth, perturbers_per_depth)
     return depth_map, max_depth, gates_per_depth, perturbers_per_depth
 
 def extract_gate_metadata(gates, depth_map, output_input_map):
