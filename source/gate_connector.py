@@ -164,7 +164,7 @@ def analyze_gate_depths(gates):
                 queue.append((depth + 1, gates[idx]))
                 idx += 1
     max_depth = max(depth_map.values())
-    print(gates_per_depth, perturbers_per_depth)
+    #print(gates_per_depth, perturbers_per_depth)
     return depth_map, max_depth, gates_per_depth, perturbers_per_depth
 
 def extract_gate_metadata(gates, depth_map, output_input_map):

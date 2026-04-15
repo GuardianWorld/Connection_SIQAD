@@ -1,3 +1,4 @@
+from ast import expr
 import csv
 import json
 import dash
@@ -19,6 +20,10 @@ from pages import configpage
 from dash import ClientsideFunction
 from pathlib import Path
 from sympy.logic.boolalg import truth_table
+from sympy import symbols
+from itertools import product
+import csv
+from datetime import datetime
 
 matplotlib.use("Agg")
 data_temp = Path("data") / "temp"
@@ -191,7 +196,7 @@ def update_gate_view(_,__, ___, selected_gates, files_data, wire_lenght, algorit
     gate_pos_name = None
     files = selected_gates
     
-    if not is_valid_combo(files):
+    if not is_valid_combo(files, 999999999):
         print("⚠️ Invalid gate combination selected.")
         return placeholder_fig, None
 
@@ -599,9 +604,6 @@ def save_current(n_clicks, table_data, specific_gate_data, gate_storage, sim_sto
 )
 
 def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
-    from itertools import product
-    import csv
-    from datetime import datetime
 
     if n_clicks is None or n_clicks <= 0:
         return
@@ -614,6 +616,8 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
 
     gate_unique_expressions = {}
     expressions_file = Path("data/auto_batch_results") / "saved_expressions.json"
+
+    
 
     if os.path.exists(expressions_file):
         with open(expressions_file, "r") as f:
@@ -632,30 +636,69 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
     wire_length = 1  # Default wire length
     last_num_gates = 1
     all_combos = []
-    for r in range(1, 6):  
+    max_size = 5
+    max_len = 2 * max_size # Worst case is GATE - INPUT - GATE - INPUT .... which means K = 2 * size - 1. We do not do -1 because the following generation does [1, max_len) and not [1, max_len]
+    for r in range(1, max_len):  
         all_combos.extend(list(product(files_data, repeat=r)))
 
     def normalize_combo(combo):
         """Return tuple of just the gate filenames (order preserved)."""
         return tuple(os.path.basename(g) for g in combo)
     
+    def canonicalize_expression(expr):
+        mapping = {}
+        counter = 0
+
+        # deterministic ordering of symbols
+        ordered_symbols = sorted(expr.free_symbols, key=lambda s: str(s))
+
+        for s in ordered_symbols:
+            mapping[s] = symbols(f"x{counter}")
+            counter += 1
+
+        return expr.xreplace(mapping)
+
+    def is_unique_combo(combo, generator_unique_expressions, canonicalize=True):
+        """Check if the combo is unique based on its expression."""
+        circuit, _, _, _ = gate_connector.connect_n_gates(combo, wires=wire_length)
+        gate = sqd_manipulator.circuit_to_gate(circuit)
+        if canonicalize:
+            expr_key = canonicalize_expression(gate.expression)
+        else:
+            expr_key = gate.expression
+
+        if expr_key in generator_unique_expressions:
+            #print(f"⚠️ Duplicate expression found, skipping combination {[os.path.basename(g) for g in combo]}. Expression: {gate.expression}")
+            return False
+        generator_unique_expressions[expr_key] = True
+        return True
+    
     seen = set()
     unique_combos = []
+    generator_unique_expressions = {}
 
     for combo in all_combos:
-        if not is_valid_combo(combo):
+        if not is_valid_combo(combo, max_size):
             continue
     
         norm = normalize_combo(combo)
+        #check if the combo is unique based on its expression
+        if not is_unique_combo(combo, generator_unique_expressions):
+            continue
         if norm not in seen:
             seen.add(norm)
-            unique_combos.append(combo)
+            unique_combos.append(combo)    
 
     group_sizes = []
+    #We have to count based on the number of gates (minus INPUT)
     for combo in unique_combos:
-        while len(group_sizes) < len(combo):
+        num_gates = sum(1 for g in combo if os.path.basename(g) != "INPUT.sqd")
+        #print(f"Combo: {[os.path.basename(g) for g in combo]}, Gates: {num_gates}")
+
+        while len(group_sizes) < num_gates:
             group_sizes.append(0)
-        group_sizes[len(combo)-1] += 1
+        group_sizes[num_gates - 1] += 1
+
 
     for size, count in enumerate(group_sizes):
         print(f"Total {size+1}-gate combinations: {count}")
@@ -663,8 +706,8 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
 
     #all_combos = single_gates + two_gate_combos + three_gate_combos + four_gate_combos + five_gate_combos
     print(f"Approximate Total combinations to simulate: {len(unique_combos)}")
-    print("Note: The actual number may be vastly lower due to invalid combinations or logical duplicates being skipped.")
-
+    print("Note: The actual number may be lower due to invalid combinations or logical duplicates being skipped.")
+    return
     file_exists = summary_csv_path.exists()
     with open(summary_csv_path, mode='a', newline='') as csv_file:
         csv_writer = csv.DictWriter(csv_file, fieldnames=['RowType', 'Combination', 'Expression', 'Num_Gates', 'Mismatch', 'Timestamp', 'Runtime_s'])
@@ -697,23 +740,18 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
             print("Starting fresh auto batch simulation.")
 
         #Time storage for calculations
-        avg_time = 0
-        expected_runtime = 0
         original_wire_length = wire_length
         for combo in unique_combos:  
             wire_length = original_wire_length
             if(len(combo) != last_num_gates):
-                print(f"❗ Now processing {len(combo)}-gate combinations ❗")
+                #print(f"❗ Now processing {len(combo)}-gate combinations ❗")
                 csv_file.flush()
                 last_num_gates = len(combo)    
-                avg_time = 0
-                current_group += 1
             selected_gates = combo
 
             combo_name = "_".join([os.path.basename(g) for g in selected_gates])
             if combo_name in completed_combos:
                 print(f"⚠️ Skipping already completed combination: {combo_name}")
-                group_sizes[current_group] -= 1
                 continue
 
             starting_time = time.time()
@@ -772,22 +810,7 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
             with open(expressions_file, "w") as f:
                 # Dump the current state of gate_unique_expressions
                 json.dump({str(k): True for k in gate_unique_expressions.keys()}, f)
-
-            #Time calculations
-            if avg_time == 0:
-                avg_time = runtime_s
-            else:
-                avg_time = (avg_time + runtime_s) / 2.0
-            expected_runtime = avg_time * group_sizes[current_group]
-            group_sizes[current_group] = group_sizes[current_group] - 1
-            #print(group_sizes[current_group])
-            minutes = int(expected_runtime // 60)
-            seconds = int(expected_runtime % 60)
-            if group_sizes[current_group] <= 0:
-                minutes = 0
-                seconds = 0
-            formatted_time = f"{minutes}:{seconds:02d}"
-
+           
             # Save results just like the save_current function
             gate_name = gate.name if gate.name else f"unnamed_gate{str(combo)}"
             #Get the number of gates
@@ -823,9 +846,8 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
 
             plt.savefig(save_folder / f"{circuit_name}_truth_table.png", dpi=300, bbox_inches='tight')
             plt.close(fig)
-            #print(f"✅ Truth table saved: {save_folder / f'{circuit_name}_truth_table.png'}")
 
-            # Save specific gate data plot as PNG
+            # Save specific gate data plot as PNG ONLY on mismatch
             for i, gate_info in enumerate(specific_gate_data):
                 # Convert plot_XY data manually
                 x_coords = [dot[0] for dot in gate_info]
@@ -842,7 +864,6 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
 
                 plt.savefig(save_folder / f"specific_gate_{i}.png", dpi=300, bbox_inches='tight')
                 plt.close()
-            #print(f"✅ Gate data plots saved under {save_folder}")
 
             config_file_path = save_folder / "simulation_config.txt"
             with open(config_file_path, "w") as f:
@@ -850,7 +871,7 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
                 f.write(f"Configuration Parameters:\n")
                 for key, value in config_sim_store.items():
                     f.write(f"{key}: {value}\n")
-            #print(f"✅ Simulation configuration saved: {config_file_path}")
+
             if separate_results:
                 print(f"✅ Completed simulation and saving for combination: {[os.path.basename(g) for g in selected_gates]} ⚠️ mismatch found")
             else:
@@ -901,7 +922,7 @@ def save_gate(button, gate):
         f.write(template)
     print(f"✅ Gate saved: {gate_file_path}")
     
-def is_valid_combo(combo):
+def is_valid_combo(combo, max_size):
     INPUT_NAME = "INPUT.sqd"
     names = [os.path.basename(g) for g in combo]
 
@@ -922,5 +943,9 @@ def is_valid_combo(combo):
             # INPUT are leaf nodes, they don't open new slots
             available_slots += 2
 
-
+    # 3) We can also set a maximum size for the combinations to avoid simulating very large and likely invalid combinations. This is especially useful for the auto batch feature.
+    #we remove INPUT from the count as they don't add complexity to the circuit
+    non_input_count = sum(1 for name in names if name != INPUT_NAME)
+    if non_input_count > max_size:
+        return False
     return True
