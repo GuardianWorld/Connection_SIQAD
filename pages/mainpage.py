@@ -707,7 +707,6 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
     #all_combos = single_gates + two_gate_combos + three_gate_combos + four_gate_combos + five_gate_combos
     print(f"Approximate Total combinations to simulate: {len(unique_combos)}")
     print("Note: The actual number may be lower due to invalid combinations or logical duplicates being skipped.")
-    return
     file_exists = summary_csv_path.exists()
     with open(summary_csv_path, mode='a', newline='') as csv_file:
         csv_writer = csv.DictWriter(csv_file, fieldnames=['RowType', 'Combination', 'Expression', 'Num_Gates', 'Mismatch', 'Timestamp', 'Runtime_s'])
@@ -848,22 +847,23 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
             plt.close(fig)
 
             # Save specific gate data plot as PNG ONLY on mismatch
-            for i, gate_info in enumerate(specific_gate_data):
-                # Convert plot_XY data manually
-                x_coords = [dot[0] for dot in gate_info]
-                y_coords = [dot[1] for dot in gate_info]
-                colors = ['black' if dot[2] == '0' else 'blue' for dot in gate_info]
-                markers = ['o' if dot[2] == '1' else 'o' for dot in gate_info]
+            if(separate_results):
+                for i, gate_info in enumerate(specific_gate_data):
+                    # Convert plot_XY data manually
+                    x_coords = [dot[0] for dot in gate_info]
+                    y_coords = [dot[1] for dot in gate_info]
+                    colors = ['black' if dot[2] == '0' else 'blue' for dot in gate_info]
+                    markers = ['o' if dot[2] == '1' else 'o' for dot in gate_info]
 
-                plt.figure(figsize=(6, 6))
-                for x, y, c in zip(x_coords, y_coords, colors):
-                    plt.scatter(x, y, color=c, s=60, edgecolors='none')
-                plt.gca().invert_yaxis()
-                plt.axis('off')
-                plt.tight_layout()
+                    plt.figure(figsize=(6, 6))
+                    for x, y, c in zip(x_coords, y_coords, colors):
+                        plt.scatter(x, y, color=c, s=60, edgecolors='none')
+                    plt.gca().invert_yaxis()
+                    plt.axis('off')
+                    plt.tight_layout()
 
-                plt.savefig(save_folder / f"specific_gate_{i}.png", dpi=300, bbox_inches='tight')
-                plt.close()
+                    plt.savefig(save_folder / f"specific_gate_{i}.png", dpi=300, bbox_inches='tight')
+                    plt.close()
 
             config_file_path = save_folder / "simulation_config.txt"
             with open(config_file_path, "w") as f:
@@ -877,8 +877,8 @@ def auto_batch_simulation(n_clicks, files_data, current_sim, config_sim_store):
             else:
                 print(f"✅ Completed simulation and saving for combination: {[os.path.basename(g) for g in selected_gates]}")
             
-            time_to_sleep = max(0.5, len(selected_gates) - 1)
-            time_to_sleep = min(time_to_sleep, 4.0)
+            time_to_sleep = max(0.2, len(selected_gates) - 1)
+            time_to_sleep = min(time_to_sleep, 2.0)
             time.sleep(time_to_sleep)  # Sleep to avoid overloading the simulator
             final_runtime = time.time() - starting_time
             print(f"⏲ Runtime: {final_runtime:<.2f}s")
