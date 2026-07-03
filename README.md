@@ -95,3 +95,8 @@ This project instead emphasizes exploration, preserving unsuccessful configurati
 Developed as part of my Master's dissertation on automated Silicon Dangling Bond circuit generation and interconnection.
 
 The framework focuses on large-scale exploration of circuit layouts while minimizing manual interaction and preserving simulation data for future analysis.
+
+---
+
+Paper: {To Be Published}
+Thesis: {To Be Published}
